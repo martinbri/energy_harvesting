@@ -1,0 +1,10 @@
+1.						!Chord
+1.						!U_ref
+0.0						!Pivot(0-1)
+0.0						!Cm reference(0-1)
+sd7003.dat				        !Airfoil File
+30000						!Reference Reynolds number
+2						!Critical LESP
+motion_pr_amp45_k0.2.dat			!Input motion Filename
+force_pr_amp45_k0.2_le.dat			!Force Output filename
+nil				20		!Flow Output Filename, Output frequency
