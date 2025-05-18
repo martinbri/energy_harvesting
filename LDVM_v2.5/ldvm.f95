@@ -209,13 +209,16 @@ do i_step=2,n_step
    
    !Calculate bound vortex positions at this time step
       dist_wind=dist_wind+(u(i_step-1)*(t(i_step)-t(i_step-1)))
-      ! write(*,*) "dist_wind" , dist_wind
+
+      write(*,*) "dist_wind" , dist_wind
       do i_div=1,n_div
          bound(i_div,2)=-((c-pvt*c)+((pvt*c-x(i_div))*cos(alpha(i_step)))+dist_wind)&
               &+(cam(i_div)*sin(alpha(i_step)))
          bound(i_div,3)=h(i_step)+((pvt*c-x(i_div))*sin(alpha(i_step)))+(cam(i_div)&
               &*cos(alpha(i_step)))
       end do
+      write(*,*) "bound", bound(1,2), bound(1,3)
+      
 
       
 
@@ -226,7 +229,9 @@ do i_step=2,n_step
    if (n_tev==1) then
       tev(n_tev,2)=bound(n_div,2)+(0.5*u(i_step)*(t(i_step)-t(i_step-1)))
       tev(n_tev,3)=bound(n_div,3)
-      ! write(*,*) "tev", tev(n_tev:n_tev+1,2), tev(n_tev:n_tev+1,3)
+      write(*,*) bound(n_div,3)
+      write(*,*) "tev",tev(n_tev:n_tev+1,1), tev(n_tev:n_tev+1,2), tev(n_tev:n_tev+1,3)
+      !call sleep(10)
        
       
    else
@@ -270,12 +275,20 @@ do i_step=2,n_step
    iter=0
    do
       iter=iter+1
-      if (iter>iter_max) then
+      if (iter>10) then
          write(*,*)i_step,'1D iteration failed'
-         stop
+         exit
+         !stop
       end if
       tev(n_tev,1)=tev_iter(iter)
+      write(*,*) "current tev strength", tev(n_tev,1), iter
+      
       call calc_downwash_boundcirc
+      write(*,*) "aterm(0)", aterm(0)
+      write(*,*) "aterm(1)", aterm(1)
+
+      write(*,*) "bound_circ", bound_circ
+
 
       ! write(*,*) "bound_circ", bound_circ
       ! write(*,*) "aterm(0)", aterm(0)
@@ -285,16 +298,25 @@ do i_step=2,n_step
       do i_lev=1,n_lev
          kelv(iter)=kelv(iter)+lev(i_lev,1)
       end do
+      write(*,*) "lev contribution", kelv(iter)
       do i_tev=1,n_tev
          kelv(iter)=kelv(iter)+tev(i_tev,1)
       end do
+      write(*,*) "lev tev contribution", kelv(iter)
       kelv(iter)=kelv(iter)+bound_circ
+
+      write(*,*) "current_kelvin_loss", kelv(iter)
       if (abs(kelv(iter))<eps) then
          exit
       end if
       dkelv=(kelv(iter)-kelv(iter-1))/(tev_iter(iter)-tev_iter(iter-1))
       tev_iter(iter+1)=tev_iter(iter)-(kelv(iter)/dkelv)      
+
    end do
+   ! if (i_step>0)then
+   !           print *, "Press Enter to continue..."
+   !       read(*,*)
+   !    end if
    aterm(2:3)=0
    do i_aterm=2,3
       do i_div=2,n_div
@@ -375,14 +397,14 @@ do i_step=2,n_step
          end if
          !Advancing with tev strength
          lev(n_lev,1)=lev_iter(iter-1)
-         write(*,*) "current lev strength", lev(n_lev,1), iter
+         !write(*,*) "current lev strength", lev(n_lev,1), iter
          tev(n_tev,1)=tev_iter(iter)
          call calc_downwash_boundcirc
 
         
-         write(*,*) "aterm(0)_0", aterm(0)
-         write(*,*) "aterm(1)_0", aterm(1)
-         write(*,*) "bound_circ_0", bound_circ
+         !write(*,*) "aterm(0)_0", aterm(0)
+         !write(*,*) "aterm(1)_0", aterm(1)
+         !write(*,*) "bound_circ_0", bound_circ
          kelv_tev=kelv_enf
          do i_lev=1,n_lev
             kelv_tev=kelv_tev+lev(i_lev,1)
@@ -393,17 +415,17 @@ do i_step=2,n_step
          kelv_tev=kelv_tev+bound_circ
          !write(*,*) "current kelvin condition ", kelv_tev
          kutta_tev=aterm(0)-lesp_cond
-         write(*,*) "check dkelv_tev", kelv_tev, kelv(iter-1),tev_iter(iter),tev_iter(iter-1)
+         !write(*,*) "check dkelv_tev", kelv_tev, kelv(iter-1),tev_iter(iter),tev_iter(iter-1)
          dkelv_tev=(kelv_tev-kelv(iter-1))/(tev_iter(iter)-tev_iter(iter-1))
          dkutta_tev=(kutta_tev-kutta(iter-1))/(tev_iter(iter)-tev_iter(iter-1))
          !Advancing with lev strength 
-         write(*,*) "maybe error here", lev_iter(iter),iter
+         !write(*,*) "maybe error here", lev_iter(iter),iter
          lev(n_lev,1)=lev_iter(iter)
          tev(n_tev,1)=tev_iter(iter-1) 
          call calc_downwash_boundcirc
-         write(*,*) "aterm(0)_1", aterm(0)
-         write(*,*) "aterm(1)_1", aterm(1)
-         write(*,*) "bound_circ_1", bound_circ
+         !write(*,*) "aterm(0)_1", aterm(0)
+         !write(*,*) "aterm(1)_1", aterm(1)
+         !write(*,*) "bound_circ_1", bound_circ
          kelv_tev=kelv_enf
          kelv_lev=kelv_enf
          do i_lev=1,n_lev 
@@ -420,9 +442,9 @@ do i_step=2,n_step
          lev(n_lev,1)=lev_iter(iter)
          tev(n_tev,1)=tev_iter(iter)
          call calc_downwash_boundcirc
-         write(*,*) "aterm(0)_2", aterm(0)
-         write(*,*) "aterm(1)_2", aterm(1)
-         write(*,*) "bound_circ_2", bound_circ
+         !write(*,*) "aterm(0)_2", aterm(0)
+         !write(*,*) "aterm(1)_2", aterm(1)
+         !write(*,*) "bound_circ_2", bound_circ
          kelv_tev=kelv_enf
          kelv(iter)=kelv_enf
          do i_lev=1,n_lev
@@ -440,15 +462,15 @@ do i_step=2,n_step
          tev_iter(iter+1)=tev_iter(iter)-((1/(dkelv_tev*dkutta_lev-dkelv_lev*dkutta_tev))*&
               &((dkutta_lev*kelv(iter))-(dkelv_lev*kutta(iter))))
 
-         write(*,*) "check incriminated line", lev_iter(iter),dkelv_tev,dkutta_lev,dkelv_lev,dkutta_tev,dkutta_tev, kelv(iter)!, kutta(iter)
+         !write(*,*) "check incriminated line", lev_iter(iter),dkelv_tev,dkutta_lev,dkelv_lev,dkutta_tev,dkutta_tev, kelv(iter)!, kutta(iter)
          lev_iter(iter+1)=lev_iter(iter)-((1/(dkelv_tev*dkutta_lev-dkelv_lev*dkutta_tev))*&
               &((-dkutta_tev*kelv(iter))+(dkelv_tev*kutta(iter))))
       end do
-      write(*,*) "lesp", lesp
-      write(*,*) "last_tev_strength", tev(n_tev,1), i_step
-      if (n_lev>0.1) then
-         write(*,*) "last_lev_strength", lev(n_lev,1), i_step
-      end if
+      !write(*,*) "lesp", lesp
+      !write(*,*) "last_tev_strength", tev(n_tev,1), i_step
+      !if (n_lev>0.1) then
+         !write(*,*) "last_lev_strength", lev(n_lev,1), i_step
+      !end if
       !call sleep(10)
    else
       levflag=0
@@ -486,6 +508,15 @@ do i_step=2,n_step
       bound_int(i_div,2)=(bound(i_div,2)+bound(i_div-1,2))/2
       bound_int(i_div,3)=(bound(i_div,3)+bound(i_div-1,3))/2
    end do
+   write(*,*) "bound_int", bound_int(2:10,1), bound_int(2:10,2), bound_int(2:10,3)
+
+
+   print *, "Press Enter to continue..."
+       read(*,*)
+   !    end if
+   aterm(2:3)=0
+
+   
 
    !Wake rollup
    uind_tev(1:n_tev)=0
@@ -515,6 +546,7 @@ do i_step=2,n_step
          wind_tev(i_tev)=wind_tev(i_tev)+((-bound_int(i_div,1)*bound_int_xdist)/(2*pi*sqrt(v_core**4+dist**2)))
       end do
    end do
+  
    uind_lev(1:n_lev)=0
    wind_lev(1:n_lev)=0
    do i_lev=1,n_lev
@@ -555,12 +587,12 @@ do i_step=2,n_step
    ! end do
   
    do i_tev=1,n_tev
-      tev(i_tev,2)=tev(i_tev,2)+(dt*uind_tev(i_tev))
-      tev(i_tev,3)=tev(i_tev,3)+(dt*wind_tev(i_tev))
+      tev(i_tev,2)=tev(i_tev,2)+!(dt*uind_tev(i_tev))
+      tev(i_tev,3)=tev(i_tev,3)+!(dt*wind_tev(i_tev))
    end do
    do i_lev=1,n_lev
-      lev(i_lev,2)=lev(i_lev,2)+(dt*uind_lev(i_lev))
-      lev(i_lev,3)=lev(i_lev,3)+(dt*wind_lev(i_lev))
+      lev(i_lev,2)=lev(i_lev,2)+!(dt*uind_lev(i_lev))
+      lev(i_lev,3)=lev(i_lev,3)+!(dt*wind_lev(i_lev))
    end do
 
 
@@ -652,6 +684,7 @@ end do
 
 call cpu_time(t2)
 write(*,*)t2-t1,n_lev, n_tev
+write(*,*)'tev', tev(1:n_tev,1)
 
 contains
 
@@ -761,6 +794,8 @@ end subroutine calc_camberslope
 subroutine calc_downwash_boundcirc
   uind(1:n_div)=0
   wind(1:n_div)=0
+  !tev(1:3000,1)=0
+  
   do i_div=1,n_div
      do i_lev=1,n_lev
         dist=xdist(1,3,i_div,i_lev)**2+zdist(1,3,i_div,i_lev)**2
@@ -772,14 +807,15 @@ subroutine calc_downwash_boundcirc
       if (i_div==1) then
 
      
-      write(*,*) "uindlev", uind(i_div), i_div
-      write(*,*) "windlev", wind(i_div), i_div
-      write(*,*) "lev", lev(1,1), lev(1,2), lev(1,3)
+      !write(*,*) "uindlev", uind(i_div), i_div
+      !write(*,*) "windlev", wind(i_div), i_div
+      !write(*,*) "lev", lev(1,1), lev(1,2), lev(1,3)
       end if
       
 
      
      do i_tev=1,n_tev
+    ! write(*,*) "tev", tev(i_tev,1), i_tev
         dist=xdist(1,2,i_div,i_tev)**2+zdist(1,2,i_div,i_tev)**2
         uind(i_div)=uind(i_div)+(tev(i_tev,1)*&
              &(-zdist(1,2,i_div,i_tev))/(2*pi*sqrt(v_core**4+dist**2)))
@@ -793,6 +829,10 @@ subroutine calc_downwash_boundcirc
           &*cos(alpha(i_step)))+(u(i_step)*cos(alpha(i_step)))+(hdot(i_step)*sin(alpha(i_step)))&
           &+(-wind(i_div)*sin(alpha(i_step)))))
   end do
+
+  write(*,*) "uindtev", uind(1)
+   write(*,*) "windtev", wind(1)
+   !write(*,*) "tev", tev(:i_step,1)
 
        
   

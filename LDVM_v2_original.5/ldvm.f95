@@ -61,10 +61,10 @@ program LDVM
 
 implicit none
 
-double precision :: pi, eps
+double precision :: pi, eps, moyenne_lev
 double precision :: c, u_ref, pvt, v_core, cm_pvt, del_dist
 integer, parameter :: expect_vort=3000
-integer :: n_div, n_step, n_aterm, n_coord, n_lev, n_tev, n_calib
+integer :: n_div, n_step, n_aterm, n_coord, n_lev, n_tev, n_calib, i_moy
 integer :: i_div, i_step, i_coord, io1, iter_max, iter, i_aterm, i_calib
 integer :: i_lev, i_tev, j_lev, j_tev, levflag
 character(len=50) :: foil_name, motion_filename, flow_filename, force_filename, input_filename, cp_filename
@@ -73,8 +73,8 @@ double precision, dimension(100000) :: t, alpha, h, u, alphadot, hdot
 double precision, dimension(300) :: x, theta, cam, cam_slope, gamma
 double precision :: dtheta, xreq
 double precision, dimension(1000) :: recalib, lespcalib, lesp_splined
-double precision, dimension(0:50) :: aterm
-double precision, dimension(0:3) :: aterm_prev, adot
+double precision, dimension(0:50) :: aterm,aterm_prev
+double precision, dimension(0:3) :: adot
 double precision, dimension(300,3) :: bound, bound_int
 double precision, dimension(0:100) :: tev_iter, lev_iter, kelv, kutta
 double precision, dimension(expect_vort,3) :: tev, lev
@@ -496,6 +496,18 @@ do i_step=2,n_step
          wind_lev(i_lev)=wind_lev(i_lev)+((-bound_int(i_div,1)*bound_int_xdist)/(2*pi*sqrt(v_core**4+dist**2)))
       end do
    end do
+   ! if (n_lev>0) then
+   !    write(*,*)'uind_lev', uind_lev(1:5)
+   !    write(*,*)'wind_lev', wind_lev(1:5)
+   !    write(*,*),'tev', tev(n_tev-3:n_tev,1)
+   !    write(*,*)'xpos', lev(:n_lev,2)
+   !    write(*,*)'zpos', lev(:n_lev,3)
+   !    write(*,*) 'xpos tev', tev(n_tev-3:n_tev,2)
+   !    write(*,*) 'zpos tev', tev(n_tev-3:n_tev,3)
+   !    write(*,*) 'press enter to continue'
+   !    read(*,*) 
+   !    end if
+      
    
    !Adam-bashforth method
    dt=t(i_step)-t(i_step-1)
@@ -607,6 +619,23 @@ do i_step=2,n_step
    end if
 
 end do
+
+! Calcul de la moyenne
+moyenne_lev = 0.0
+do i_moy = 1, n_lev
+moyenne_lev = moyenne_lev + ABS(lev(i_moy,1))
+end do
+moyenne_lev = moyenne_lev / n_lev
+
+write(*,*) "Moyenne lev", moyenne_lev
+moyenne_lev = 0.0
+
+do i_moy = 1, n_tev
+moyenne_lev = moyenne_lev + ABS(tev(i_moy,1))
+end do
+moyenne_lev = moyenne_lev / n_tev
+
+write(*,*) "Moyenne tev", moyenne_lev
 
 call cpu_time(t2)
 write(*,*)t2-t1,n_lev, n_tev

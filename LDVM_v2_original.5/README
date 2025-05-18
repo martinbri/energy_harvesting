@@ -1,0 +1,124 @@
+README file for LDVM V2.5
+
+Publication providing details on the LDVM theory is:
+Kiran Ramesh, Ashok Gopalarathnam, Kenneth Granlund, Michael V. Ol and
+Jack R. Edwards, "Discrete-vortex method with novel shedding criterion
+for unsteady aerofoil flows with intermittent leading-edge vortex
+shedding," Journal of Fluid Mechanics, Volume 751, July 2014, pp
+500-538.  DOI: http://dx.doi.org/10.1017/jfm.2014.297
+Available from:
+http://www.mae.ncsu.edu/apa/publications.html#j023
+
+Publication on the large-angle unsteady thin airfoil theory is:
+Ramesh, K., Gopalarathnam, A., Edwards, J. R., Ol, M. V., and
+Granlund, K., "An unsteady airfoil theory applied to pitching
+motions validated against experiment and computation,"
+Theor. Comput. Fluid Dyn., January 2013, DOI
+10.1007/s00162-012-0292-8.  Available from:
+http://www.mae.ncsu.edu/apa/publications.html#j021
+
+Description of files in the LDVM_v2.5 folder:
+
+- ldvm.f95 
+Source code in Fortran. Has been tested with gfortran and g95
+compilers. In Linux, compile using "f95 ldvm.f95 -o ldvm"
+
+Compiled executable can be run after entering input parameters in the
+'input_LDVM.dat' file. A default input file "input_LDVM.dat" is
+included in this folder.  A typical simulation with 500 time steps
+takes ~ 15sec. The current time step, number of TEVs and number of
+LEVs are displayed on the screen (in that order) to track the
+simulation progress. At the end of simulation, 3 values are displayed
+- These are simulation time, number of LEVs in simulation, number of
+TEVs in simulation.
+
+- input_LDVM.dat
+
+This file contains the input parameters for the simulation. The
+required parameters in the file are:
+Line 1: Chord - Default value is 1. Doesn't need to be changed.
+Line 2: U_ref (Reference freestream), default value 1, doesn't need to
+be changed.
+Line 3: Pivot location between 0 and 1 (0-LE, 1-TE).
+Line 4: Reference location for moment calculations between 0 and 1.
+Line 5: Airfoil data - Enter "flat_plate" without the quotes for a
+flat plate simulation. To use an airfoil, enter the name of airfoil
+coordinate file, with the coordinates listed from the TE, over the
+upper surface to the LE, and back over the lower surface to the
+TE. The "sd7003.dat" file in this folder is an airfoil coordinate file
+for the SD7003 airfoil.
+Line 6: Reynolds number based on reference freestream velocity (not
+used for constant freestream simulations)
+Line 7: Critical LESP value for the airfoil and Reynolds number of
+operation, which modulates LEV shedding in the simulation. For a
+simulation with no LEV formation, enter a 'ridiculously high' value
+such as 50. Some known LESP values are listed below.
+
+------------------------------------------------------
+Airfoil		Reynolds number		Critical LESP
+flat_plate	1000 	 		0.19
+SD7003		10,000			0.21
+SD7003		30,000			0.18
+SD7003		100,000			0.14
+NACA0012	1,100			0.21
+-------------------------------------------------------
+Line 8: The filename containing the motion kinematics. Should contain
+the pitch, plunge and velocity data for each time step in the
+simulation. The data is to be entered in the column format:
+____________________________________________________________
+Time	    Alpha    h/c (Plunge)      U (Airfoil velocity)     
+------------------------------------------------------------
+The alpha should be in degrees. U is 1 in all rows for a simulation
+with constant freestream velocity. For a perching motion, it would
+start at 1 and decrease to 0. For a hovering motion, it would be 0
+throughout. The file 'motion_pr_amp45_k0.2.dat' is a sample input file
+for a pitch-ramp-return motion generated using the 'Eldredge
+function', with constant freestream velocity. Recommended
+nondimensional time step: 0.015
+
+Line 9: Output filename for force data. Data will be written to this
+filename in the following column format:
+___________________________________________________________________
+Time | Alpha | h/c | U | Gamma | LESP | C_n | C_s | C_l |C_d | C_m
+___________________________________________________________________
+Gamma is the total bound circulation on the airfoil, LESP is the
+instantaneous LESP value, C_n is the normal force coeff., C_s is the
+leading edge suction force coeff., C_l is the lift coeff and C_d is
+the drag coeff.
+
+Line 10: Output filename for flowfield (vorticity) data. The positions
+and strengths of all the vortices in the flowfield (bound, LEVs, TEVs)
+are listed at every time step in this file. A movie of the flowfield
+for the motion can be generated using the MATLAB script
+'vortex_viz.m', also in this folder. If flow data is not required for
+the simulation, enter "nil" without the quotes. The second column
+contains the frequency at which this information should be captured (1
+to output at every time step) .
+
+- sd7003.dat
+Sample airfoil coordinate file (SD7003 airfoil).
+
+- motion_pr_amp45_k0.2.dat
+Same input motion kinematics. Pitch-ramp-return motion, generated
+using the Eldredge function, amplitude=45 deg, reduced frequency=0.2,
+constant freestream velocity=1.
+
+- vortex_viz.m
+MATLAB script to generate an AVI video from the flow data file. Edit
+the script in order to specify the flow data filename and output movie
+name. Axis limits can be changed if necessary.
+
+Program variables:
+These are to be changed inside the source code. Modification of these
+parameters is usually not required.
+____________________________________________________________
+Variable	Description			Default value     
+------------------------------------------------------------
+eps		Tolerance for iteration		10e-6
+iter_max	Iteration limit			100
+v_core		Non-D vortex core radius	0.02
+n_div		Number of chordwise divisions	70
+n_aterm		Number of Fourier terms		45
+del_dist	Number of chords distance at	10
+		which vortices are deleted	       
+

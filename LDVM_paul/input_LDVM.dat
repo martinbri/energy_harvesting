@@ -6,5 +6,5 @@ sd7003.dat				        !Airfoil File
 30000						!Reference Reynolds number
 0.18						!Critical LESP
 motion_pr_amp45_k0.2.dat			!Input motion Filename
-force_pr_amp45_k0.2_le.dat			!Force Output filename
+test.dat                   !Force Output filename
 nil				20		!Flow Output Filename, Output frequency

@@ -2,9 +2,9 @@
 1.						!U_ref
 0.0						!Pivot(0-1)
 0.0						!Cm reference(0-1)
-flat_plate   !sd7003.dat				        !Airfoil File
+sd7003.dat				        !Airfoil File
 30000						!Reference Reynolds number
-2						!Critical LESP
+0.18						!Critical LESP
 motion_pr_amp45_k0.2.dat			!Input motion Filename
 force_pr_amp45_k0.2_le.dat			!Force Output filename
-flow_high_lesp.dat			20		!Flow Output Filename, Output frequency
+nil				20		!Flow Output Filename, Output frequency
