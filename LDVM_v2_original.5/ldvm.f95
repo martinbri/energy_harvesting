@@ -61,7 +61,7 @@ program LDVM
 
 implicit none
 
-double precision :: pi, eps, moyenne_lev
+double precision :: pi, eps, moyenne_lev, somme_carre_lev,ecart_type
 double precision :: c, u_ref, pvt, v_core, cm_pvt, del_dist
 integer, parameter :: expect_vort=3000
 integer :: n_div, n_step, n_aterm, n_coord, n_lev, n_tev, n_calib, i_moy
@@ -360,7 +360,16 @@ do i_step=2,n_step
          !Advancing with tev strength
          lev(n_lev,1)=lev_iter(iter-1)
          tev(n_tev,1)=tev_iter(iter)
+         
+         write(*,*) "current lev strength, iter",lev(n_lev,1), iter
+         write(*,*) "current tev strength, iter",tev(n_lev,1), iter
          call calc_downwash_boundcirc
+         
+         write(*,*) "aterm0_0", aterm(0)
+         write(*,*) "aterm1_0", aterm(1)
+         write(*,*) "bound_circ_0", bound_circ   
+
+
          kelv_tev=kelv_enf
          do i_lev=1,n_lev
             kelv_tev=kelv_tev+lev(i_lev,1)
@@ -369,6 +378,8 @@ do i_step=2,n_step
             kelv_tev=kelv_tev+tev(i_tev,1)
          end do
          kelv_tev=kelv_tev+bound_circ
+
+            
          kutta_tev=aterm(0)-lesp_cond
          dkelv_tev=(kelv_tev-kelv(iter-1))/(tev_iter(iter)-tev_iter(iter-1))
          dkutta_tev=(kutta_tev-kutta(iter-1))/(tev_iter(iter)-tev_iter(iter-1))
@@ -376,6 +387,11 @@ do i_step=2,n_step
          lev(n_lev,1)=lev_iter(iter)
          tev(n_tev,1)=tev_iter(iter-1) 
          call calc_downwash_boundcirc
+
+
+         write(*,*) "aterm0_0", aterm(0)
+         write(*,*) "aterm1_0", aterm(1)
+         write(*,*) "bound_circ_0", bound_circ  
          kelv_lev=kelv_enf
          do i_lev=1,n_lev 
             kelv_lev=kelv_lev+lev(i_lev,1)
@@ -384,6 +400,8 @@ do i_step=2,n_step
             kelv_lev=kelv_lev+tev(i_tev,1) 
          end do
          kelv_lev=kelv_lev+bound_circ
+
+         write(*,*) "current kelmvin condition", kelv_lev
          kutta_lev=aterm(0)-lesp_cond
          dkelv_lev=(kelv_lev-kelv(iter-1))/(lev_iter(iter)-lev_iter(iter-1))
          dkutta_lev=(kutta_lev-kutta(iter-1))/(lev_iter(iter)-lev_iter(iter-1))
@@ -391,6 +409,11 @@ do i_step=2,n_step
          lev(n_lev,1)=lev_iter(iter)
          tev(n_tev,1)=tev_iter(iter)
          call calc_downwash_boundcirc
+
+
+         write(*,*)"aterm0_2",aterm(0)
+         write(*,*)"aterm1_2",aterm(1)
+         write(*,*)"bound_circ_2",bound_circ
          kelv(iter)=kelv_enf
          do i_lev=1,n_lev
             kelv(iter)=kelv(iter)+lev(i_lev,1)
@@ -399,6 +422,7 @@ do i_step=2,n_step
             kelv(iter)=kelv(iter)+tev(i_tev,1)
          end do
          kelv(iter)=kelv(iter)+bound_circ
+
          kutta(iter)=aterm(0)-lesp_cond
          if (abs(kelv(iter))<eps .and. abs(kutta(iter))<eps) then
             exit
@@ -408,6 +432,11 @@ do i_step=2,n_step
          lev_iter(iter+1)=lev_iter(iter)-((1/(dkelv_tev*dkutta_lev-dkelv_lev*dkutta_tev))*&
               &((-dkutta_tev*kelv(iter))+(dkelv_tev*kutta(iter))))
       end do
+      
+      write(*,*)'tev strength',tev(n_tev,1), n_tev
+      write(*,*)'lev strength',lev(n_lev,1), n_tev
+         write(*,*) "press enter to continue"
+         read(*,*) 
    else
       levflag=0
    end if
@@ -427,6 +456,14 @@ do i_step=2,n_step
       aterm(i_aterm)=(2./(u_ref*pi))*aterm(i_aterm)
    end do
    
+   ! if (n_lev>0) then
+   !    write(*,*)'naterm', n_aterm
+   !    write(*,*)'aterm', aterm(0:5)
+   !    write(*,*)'gg'
+   !    read(*,*)
+
+   ! end if
+   
    !Set previous values of aterm to be used for derivatives in next time step
    aterm_prev(0:3)=aterm(0:3)
 
@@ -439,6 +476,14 @@ do i_step=2,n_step
       gamma(i_div)=gamma(i_div)*u_ref*c
    end do
 
+
+   ! if (n_lev>0) then
+   !    write(*, *) 'gamma', gamma(1:5)
+   !    write(*, *) 'dd'
+
+   !    read(*,*)
+   ! end if
+
    do i_div=2,n_div
       bound_int(i_div,1)=((gamma(i_div)+gamma(i_div-1))/2)*dtheta
       bound_int(i_div,2)=(bound(i_div,2)+bound(i_div-1,2))/2
@@ -449,15 +494,15 @@ do i_step=2,n_step
    uind_tev(1:n_tev)=0
    wind_tev(1:n_tev)=0
    do i_tev=1,n_tev
-      do j_tev=1,n_tev
-         if (i_tev .ne. j_tev) then
-            dist=xdist(2,2,i_tev,j_tev)**2+zdist(2,2,i_tev,j_tev)**2
-            uind_tev(i_tev)=uind_tev(i_tev)+&
-                 &((tev(j_tev,1)*(-zdist(2,2,i_tev,j_tev)))/(2*pi*sqrt(v_core**4+dist**2)))
-            wind_tev(i_tev)=wind_tev(i_tev)+&
-                 &((-tev(j_tev,1)*(-xdist(2,2,i_tev,j_tev)))/(2*pi*sqrt(v_core**4+dist**2)))
-         end if
-      end do
+      ! do j_tev=1,n_tev
+      !    if (i_tev .ne. j_tev) then
+      !       dist=xdist(2,2,i_tev,j_tev)**2+zdist(2,2,i_tev,j_tev)**2
+      !       uind_tev(i_tev)=uind_tev(i_tev)+&
+      !            &((tev(j_tev,1)*(-zdist(2,2,i_tev,j_tev)))/(2*pi*sqrt(v_core**4+dist**2)))
+      !       wind_tev(i_tev)=wind_tev(i_tev)+&
+      !            &((-tev(j_tev,1)*(-xdist(2,2,i_tev,j_tev)))/(2*pi*sqrt(v_core**4+dist**2)))
+      !    end if
+      ! end do
       do i_lev=1,n_lev
          dist=xdist(2,3,i_tev,i_lev)**2+zdist(2,3,i_tev,i_lev)**2
          uind_tev(i_tev)=uind_tev(i_tev)+&
@@ -483,11 +528,11 @@ do i_step=2,n_step
             wind_lev(i_lev)=wind_lev(i_lev)+((-lev(j_lev,1)*(-xdist(3,3,i_lev,j_lev)))/(2*pi*sqrt(v_core**4+dist**2)))
          end if
       end do
-      do i_tev=1,n_tev
-         dist=xdist(2,3,i_tev,i_lev)**2+zdist(2,3,i_tev,i_lev)**2
-         uind_lev(i_lev)=uind_lev(i_lev)+((tev(i_tev,1)*zdist(2,3,i_tev,i_lev))/(2*pi*sqrt(v_core**4+dist**2)))
-         wind_lev(i_lev)=wind_lev(i_lev)+((-tev(i_tev,1)*xdist(2,3,i_tev,i_lev))/(2*pi*sqrt(v_core**4+dist**2)))
-      end do
+      ! do i_tev=1,n_tev
+      !    dist=xdist(2,3,i_tev,i_lev)**2+zdist(2,3,i_tev,i_lev)**2
+      !    uind_lev(i_lev)=uind_lev(i_lev)+((tev(i_tev,1)*zdist(2,3,i_tev,i_lev))/(2*pi*sqrt(v_core**4+dist**2)))
+      !    wind_lev(i_lev)=wind_lev(i_lev)+((-tev(i_tev,1)*xdist(2,3,i_tev,i_lev))/(2*pi*sqrt(v_core**4+dist**2)))
+      ! end do
       do i_div=2,n_div
          bound_int_xdist=lev(i_lev,2)-bound_int(i_div,2)
          bound_int_zdist=lev(i_lev,3)-bound_int(i_div,3)
@@ -496,21 +541,24 @@ do i_step=2,n_step
          wind_lev(i_lev)=wind_lev(i_lev)+((-bound_int(i_div,1)*bound_int_xdist)/(2*pi*sqrt(v_core**4+dist**2)))
       end do
    end do
-   ! if (n_lev>0) then
-   !    write(*,*)'uind_lev', uind_lev(1:5)
-   !    write(*,*)'wind_lev', wind_lev(1:5)
-   !    write(*,*),'tev', tev(n_tev-3:n_tev,1)
-   !    write(*,*)'xpos', lev(:n_lev,2)
-   !    write(*,*)'zpos', lev(:n_lev,3)
-   !    write(*,*) 'xpos tev', tev(n_tev-3:n_tev,2)
-   !    write(*,*) 'zpos tev', tev(n_tev-3:n_tev,3)
+   ! if (t(i_step)>4.5) then
+   !    write(*,*)'time',t(i_step) 
+   !    write(*,*)'uind_tev', uind_tev(n_tev-4:n_tev)
+   !    write(*,*)'wind_lev', wind_tev(n_tev-4:n_tev)
+   !    !write(*,*),'lev', lev(:n_lev,1)
+   !    !write(*,*)'xpos', lev(:n_lev,2)
+   !    !write(*,*)'zpos', lev(:n_lev,3)
+   !    write(*,*) 'xpos tev', lev(n_tev-3:n_tev,2)
+   !    write(*,*) 'zpos tev', lev(n_tev-3:n_tev,3)
+   !    write(*,*) 'gamma bound', bound_int(2:5,1)
    !    write(*,*) 'press enter to continue'
-   !    read(*,*) 
+   !    !ead(*,*) 
    !    end if
       
    
    !Adam-bashforth method
    dt=t(i_step)-t(i_step-1)
+
    ! do i_tev=1,n_tev
    !    tev(i_tev,2)=tev(i_tev,2)+((dt/12)*((23*uind_tev(i_tev))-&
    !         &(16*uind_tev_prev(i_tev))+(5*uind_tev_prprev(i_tev))))
@@ -529,8 +577,8 @@ do i_step=2,n_step
       tev(i_tev,3)=tev(i_tev,3)+(dt*wind_tev(i_tev))
    end do
    do i_lev=1,n_lev
-      lev(i_lev,2)=lev(i_lev,2)+(dt*uind_lev(i_lev))
-      lev(i_lev,3)=lev(i_lev,3)+(dt*wind_lev(i_lev))
+      lev(i_lev,2)=lev(i_lev,2)!+(dt*uind_lev(i_lev))
+      lev(i_lev,3)=lev(i_lev,3)!+(dt*wind_lev(i_lev))
    end do
 
 
@@ -627,15 +675,31 @@ moyenne_lev = moyenne_lev + ABS(lev(i_moy,1))
 end do
 moyenne_lev = moyenne_lev / n_lev
 
+
+somme_carre_lev = 0.0
+do i_moy = 1, n_lev
+   somme_carre_lev = somme_carre_lev + (ABS(lev(i_moy,1)) - moyenne_lev)**2
+   end do
+    ecart_type = sqrt(somme_carre_lev / n_lev)
+
 write(*,*) "Moyenne lev", moyenne_lev
+write(*,*) "Ecart type lev", ecart_type   
 moyenne_lev = 0.0
+somme_carre_lev = 0.0
+
 
 do i_moy = 1, n_tev
 moyenne_lev = moyenne_lev + ABS(tev(i_moy,1))
 end do
 moyenne_lev = moyenne_lev / n_tev
 
+do i_moy = 1, n_tev
+somme_carre_lev = somme_carre_lev + (ABS(tev(i_moy,1)) - moyenne_lev)**2
+end do
+ecart_type = sqrt(somme_carre_lev / n_tev)
+
 write(*,*) "Moyenne tev", moyenne_lev
+write(*,*) "Ecart type tev", ecart_type
 
 call cpu_time(t2)
 write(*,*)t2-t1,n_lev, n_tev
@@ -769,6 +833,11 @@ subroutine calc_downwash_boundcirc
           &*cos(alpha(i_step)))+(u(i_step)*cos(alpha(i_step)))+(hdot(i_step)*sin(alpha(i_step)))&
           &+(-wind(i_div)*sin(alpha(i_step)))))
   end do
+  
+!   if (n_lev>0) then
+!       write(*,*)'downwash lev', downwash(1:5)
+!       read(*,*)
+!   end if
   aterm(0:1)=0
   do i_div=2,n_div
      aterm(0)=aterm(0)+(((downwash(i_div)&

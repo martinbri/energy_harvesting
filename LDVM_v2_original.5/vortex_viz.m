@@ -23,7 +23,7 @@ set(gca,'Position',[0.5 0.5 5.0 5.0]);
 
 vidobj=VideoWriter('flow_test.avi');
 set(vidobj,'Quality',100);
-vidobj.FrameRate=50
+vidobj.FrameRate=4
 open(vidobj);
 h=scatter(0,0,2.5,0,'filled');
 %h2=line([0 0],[0 0],'color','k','Linewidth',2)
