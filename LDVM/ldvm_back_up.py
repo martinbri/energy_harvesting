@@ -12,7 +12,7 @@ class ldvm:
         self.v_core=0.02 #Non dimensional core radius of point vortices
         self.n_div=70 # No. of divisions along chord on airfoil
         self.n_aterm=45 #Number of fourier terms used to compute vorticity at a location on chord  
-        self.del_dist=10
+        self.del_dist=10.00
         self.iter_max=100
         self.kelv_enf=0.0
         if config is not None:
@@ -34,7 +34,7 @@ class ldvm:
             self.pvt=np.float64(0.25)
             self.cm_pvt=0.25
             self.foil_name='NACA0012'
-            self.re_ref=1e6
+            self.re_ref=float(1e6)
             self.lesp_crit=0.5
 
             self.motion_file_name='motion.csv'
@@ -153,7 +153,7 @@ class ldvm:
         plt.plot(self.x, cam, 'g-', label='camber')
         plt.legend()
         plt.show()
-        return 0*cam, 0*cam_slope
+        return cam, cam_slope
 
     def calc_downwash_boundcirc(self):
         # Placeholder for the actual downwash calculation
@@ -163,6 +163,25 @@ class ldvm:
         wind=np.zeros((1,self.n_div))
 
         ##Compute induced velocity at each point on the airfoil
+
+        # for i_div in range (self.n_div):
+        #     for i_lev in range (len(self.lev[:,0])):
+        #         xdist=self.lev[i_lev,1]-self.bound_vortex_pos[i_div,1]
+        #         zdist=self.lev[i_lev,2]-self.bound_vortex_pos[i_div,2]
+        #         dist=xdist**2+zdist**2
+        #         uind[0,i_div]=uind[0,i_div]+self.lev[i_lev,0]*(-zdist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        #         wind[0,i_div]=wind[0,i_div]-self.lev[i_lev,0]*(-xdist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+
+        #     for i_tev in range (len(self.tev[:,0])):
+        #         xdist=self.tev[i_tev,1]-self.bound_vortex_pos[i_div,1]
+        #         zdist=self.tev[i_tev,2]-self.bound_vortex_pos[i_div,2]
+        #         dist=xdist**2+zdist**2
+        #         uind[0,i_div]=uind[0,i_div]+self.tev[i_tev,0]*(-zdist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        #         wind[0,i_div]=wind[0,i_div]-self.tev[i_tev,0]*(-xdist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+
+
+            
+
 
         
         
@@ -191,8 +210,14 @@ class ldvm:
         Gamma=(self.lev[:,0]).reshape(1,-1)
         Ustar=(-zdist_LEV_Bound)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
         Wstar=(-xdist_LEV_Bound)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        
+        
         uind=uind+Gamma@Ustar ##Warning sum is to be done in the appropriate direction +multiplication issue
         wind=wind-Gamma@Wstar ##Warning sum is to be done in the appropriate direction +multiplication issue
+
+        # print("uindlev",u_[0,0:5])
+        # print("windlev",w_[0,0:5])
+        # input("dd")
         # print("uindlev",(Gamma@Ustar)[0,0])
         # print("windlev",(-Gamma@Wstar)[0,0])
         # print("lev", self.lev[:,0], self.lev[:,1], self.lev[:,2])
@@ -212,22 +237,22 @@ class ldvm:
         #     print("downwash lev",downwash[0,0:5])
         #     input("dd")
         
-        # aterm0=0.0
-        # aterm1=0.0
-        # for i_div in range (1,self.n_div):
-        #     aterm0=aterm0+(((downwash[0,i_div]+downwash[0,i_div-1])/2)*self.dtheta)
-        #     aterm1=aterm1+(((downwash[0,i_div]*np.cos(self.theta[i_div])+downwash[i_div-1]*np.cos(self.theta[i_div-1]))/2)*self.dtheta)
-        aterm0 = trapezoid(downwash, dx=self.dtheta)
+        aterm0=0.0
+        aterm1=0.0
+        for i_div in range (1,self.n_div):
+            aterm0=aterm0+(((downwash[0,i_div]+downwash[0,i_div-1])/2)*self.dtheta)
+            aterm1=aterm1+(((downwash[0,i_div]*np.cos(self.theta[i_div])+downwash[0,i_div-1]*np.cos(self.theta[i_div-1]))/2)*self.dtheta)
+        #aterm0 = trapezoid(downwash, dx=self.dtheta)
         
-        aterm1 = trapezoid(downwash * np.cos(self.theta), dx=self.dtheta)
+        #aterm1 = trapezoid(downwash * np.cos(self.theta), dx=self.dtheta)
         aterm0=(-1./(self.u_ref*np.pi))*aterm0
         aterm1=(2./(self.u_ref*np.pi))*aterm1
 
         # print("aterm0",aterm0)
 
         bound_circ=self.u_ref*self.chord*np.pi*(aterm0+(aterm1/2.))
-        print("aterm0",float(aterm0),aterm0[0],aterm0+1e-7)
-        ee
+        print("aterm0",float(aterm0),aterm0+1e-10)
+        
         # print("aterm1",aterm1)
         # print("bound_circ",bound_circ)
         
@@ -285,7 +310,7 @@ class ldvm:
             self.tev[self.n_tev,0]=tev_iter[iter]
             aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc()
             print("aterm0",aterm0,type(aterm0))
-            input("edd")
+            #input("edd")
             # print("aterm1",aterm1)
             # print("bpound_circ",bound_circ)
             
@@ -299,7 +324,7 @@ class ldvm:
                 kelv[iter]+=np.sum(self.tev[:,0])
 
             #print("curent kelmvin condition",kelv[iter])
-            kelv[iter]=kelv[iter]+bound_circ[0]
+            kelv[iter]=kelv[iter]+bound_circ
             
             if (abs(kelv[iter])<self.eps) :
 
@@ -317,9 +342,10 @@ class ldvm:
         self.aterm[3]=0.0
         print("downwash shape"  ,downwash.shape) 
         
-        for i_aterm in range(2,3):
+        for i_aterm in range(2,4):
             for i_div in range(1, self.n_div):
                 self.aterm[i_aterm]= self.aterm[i_aterm]+((((downwash[0,i_div]*np.cos(i_aterm*self.theta[i_div]))+(downwash[0,i_div-1]*np.cos(i_aterm*self.theta[i_div-1])))/2)*self.dtheta)
+        
                 
             self.aterm[i_aterm]=(2./(self.u_ref*np.pi))*self.aterm[i_aterm]
 
@@ -331,7 +357,7 @@ class ldvm:
         adot1=(aterm1-self.aterm_prev[1])/(self.time[self.i_step]-self.time[self.i_step-1])
         adot2=(self.aterm[2]-self.aterm_prev[2])/(self.time[self.i_step]-self.time[self.i_step-1])
         adot3=(self.aterm[3]-self.aterm_prev[3])/(self.time[self.i_step]-self.time[self.i_step-1])
-      
+        print('aterm3',self.aterm[3],self.aterm_prev[3])
         le_vel_x=(self.u[self.i_step])-(self.alphadot[self.i_step]*np.sin(self.alpha[self.i_step])*self.pvt*self.chord)+uind[0,0]
         
         
@@ -446,7 +472,7 @@ class ldvm:
                 kelv[iter]+=np.sum(self.lev[:,0])
                 kelv[iter]+=np.sum(self.tev[:,0])
                 
-                kelv[iter]+=bound_circ[0]
+                kelv[iter]+=bound_circ
 
                 
                 
@@ -454,18 +480,15 @@ class ldvm:
                 #print("final kelvin kutta conditions ", kelv[iter],kutta[iter])
                 if (abs(kelv[iter])<self.eps and abs(kutta[iter])<self.eps):
                     break
-                tev_iter[iter+1]=tev_iter[iter]-((1/(dkelv_tev[0]*dkutta_lev[0]-dkelv_lev[0]*dkutta_tev[0]))*((dkutta_lev[0]*kelv[iter])-(dkelv_lev[0]*kutta[iter])))
+                tev_iter[iter+1]=tev_iter[iter]-((1/(dkelv_tev*dkutta_lev-dkelv_lev*dkutta_tev))*((dkutta_lev*kelv[iter])-(dkelv_lev*kutta[iter])))
                 # print("check incriminated line", lev_iter[iter],dkelv_tev[0],dkutta_lev[0],dkelv_lev[0],dkutta_tev[0],dkutta_tev[0],kelv[iter],dkelv_tev[0],kutta[iter])
-                lev_iter[iter+1]=lev_iter[iter]-((1/(dkelv_tev[0]*dkutta_lev[0]-dkelv_lev[0]*dkutta_tev[0]))*((-dkutta_tev[0]*kelv[iter])+(dkelv_tev[0]*kutta[iter])))
+                lev_iter[iter+1]=lev_iter[iter]-((1/(dkelv_tev*dkutta_lev-dkelv_lev*dkutta_tev))*((-dkutta_tev*kelv[iter])+(dkelv_tev*kutta[iter])))
                 
                 
             if (iter>=self.iter_max):
                     print('2D iteration failed, the residuals are kelvin :{}, kutta {}'.format(abs(kelv[iter]),abs(kutta[iter])))
             
-            print("last tev strength",self.tev[self.n_tev,0],self.n_tev)
-            if self.lev.size>0:
-                print("last lev strength",self.lev[-1,0],self.n_tev)
-            input("press enter to continue")
+
             self.n_lev=self.n_lev+1
             #time.sleep(10)
         else:
@@ -474,6 +497,8 @@ class ldvm:
 
                  
         #To remove any massive starting vortices
+        print('istep',self.i_step)
+        
         if (self.i_step==1) :
             self.tev[0,0]=0
         
@@ -483,8 +508,11 @@ class ldvm:
         print(self.aterm.shape,type(aterm0),aterm0)
         
         self.aterm[0] = aterm0
-        sddd
+        print(self.aterm[0])
         self.aterm[1] = aterm1
+
+        print(self.aterm,aterm0)
+        
         self.aterm[2:] = 0.0
         for i_aterm in range(2, self.n_aterm):
             for i_div in range(1, self.n_div):
@@ -528,11 +556,32 @@ class ldvm:
         # Update Tev numbers
         self.n_tev=self.n_tev+1  
 
-        uind_tev=np.zeros(self.n_tev) # Vitesse induite sur les TEV
-        print("uind_tev",uind_tev.dtype)
-        dd
+        uind_tev=np.zeros(self.n_tev) # Vitesse induite sur les TEV        
         
         wind_tev=np.zeros(self.n_tev)
+
+        # for i_tev in range (self.n_tev):
+        #     for j_tev in range (self.n_tev):
+        #         x_dist=self.tev[j_tev,1]-self.tev[i_tev,1]
+        #         z_dist=self.tev[j_tev,2]-self.tev[i_tev,2]
+        #         dist=x_dist**2+z_dist**2
+        #         uind_tev[i_tev]=uind_tev[i_tev]+self.tev[j_tev,0]*(-z_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        #         wind_tev[i_tev]=wind_tev[i_tev]-self.tev[j_tev,0]*(-x_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+
+        #     for j_lev in range (self.n_lev):
+        #         x_dist=self.lev[j_lev,1]-self.tev[i_tev,1]
+        #         z_dist=self.lev[j_lev,2]-self.tev[i_tev,2]
+        #         dist=x_dist**2+z_dist**2
+        #         uind_tev[i_tev]=uind_tev[i_tev]+self.lev[j_lev,0]*(-z_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        #         wind_tev[i_tev]=wind_tev[i_tev]-self.lev[j_lev,0]*(-x_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+            
+        #     for j_bound in range (self.n_div-1):
+        #         x_dist=bound_int[j_bound,1]-self.tev[i_tev,1]
+        #         z_dist=bound_int[j_bound,2]-self.tev[i_tev,2]
+        #         dist=x_dist**2+z_dist**2
+        #         uind_tev[i_tev]=uind_tev[i_tev]+bound_int[j_bound,0]*(-z_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        #         wind_tev[i_tev]=wind_tev[i_tev]-bound_int[j_bound,0]*(-x_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+
         
         xdist_TEV_TEV=np.tile(self.tev[:,1], (len(self.tev[:,1]), 1)).T- np.tile(self.tev[:,1], (len(self.tev[:,1]), 1))
         zdist_TEV_TEV=np.tile(self.tev[:,2], (len(self.tev[:,2]), 1)).T- np.tile(self.tev[:,2], (len(self.tev[:,2]), 1))
@@ -543,9 +592,9 @@ class ldvm:
         
 
 
-        uind_tev=uind_tev#+Gamma@Ustar #Warning sum is to be done in the appropriate direcion +multiplication issue
+        uind_tev=uind_tev+Gamma@Ustar #Warning sum is to be done in the appropriate direcion +multiplication issue
         
-        wind_tev=wind_tev#-Gamma@Wstar #Warning sum is to be done in the appropriate direction +multiplication issue
+        wind_tev=wind_tev-Gamma@Wstar #Warning sum is to be done in the appropriate direction +multiplication issue
 
         # print('xdist_TEV_TEV',xdist_TEV_TEV)
         # print('zdist_TEV_TEV',zdist_TEV_TEV)
@@ -597,6 +646,31 @@ class ldvm:
         
         uind_lev=np.zeros(self.n_lev) 
         wind_lev=np.zeros(self.n_lev)
+
+        # for i_lev in range (self.n_lev):
+        #     for j_lev in range (self.n_lev):
+        #         x_dist=self.lev[j_lev,1]-self.lev[i_lev,1]
+        #         z_dist=self.lev[j_lev,2]-self.lev[i_lev,2]
+        #         dist=x_dist**2+z_dist**2
+        #         uind_lev[i_lev]=uind_lev[i_lev]+self.lev[j_lev,0]*(-z_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        #         wind_lev[i_lev]=wind_lev[i_lev]-self.lev[j_lev,0]*(-x_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+            
+        #     for j_tev in range (self.n_tev):
+        #         x_dist=self.tev[j_tev,1]-self.lev[i_lev,1]
+        #         z_dist=self.tev[j_tev,2]-self.lev[i_lev,2]
+        #         dist=x_dist**2+z_dist**2
+        #         uind_lev[i_lev]=uind_lev[i_lev]+self.tev[j_tev,0]*(-z_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        #         wind_lev[i_lev]=wind_lev[i_lev]-self.tev[j_tev,0]*(-x_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+            
+        #     for j_bound in range (self.n_div-1):
+        #         x_dist=bound_int[j_bound,1]-self.lev[i_lev,1]
+        #         z_dist=bound_int[j_bound,2]-self.lev[i_lev,2]
+        #         dist=x_dist**2+z_dist**2
+        #         uind_lev[i_lev]=uind_lev[i_lev]+bound_int[j_bound,0]*(-z_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        #         wind_lev[i_lev]=wind_lev[i_lev]-bound_int[j_bound,0]*(-x_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+            
+            
+
         #Vitesse LEV sur LEV
 
         xdist_LEV_LEV=np.tile(self.lev[:,1], (len(self.lev[:,1]),1)).T-np.tile(self.lev[:,1], (len(self.lev[:,1]),1))
@@ -685,8 +759,8 @@ class ldvm:
         ##Update TEV and LEV positions
         self.tev[:,1]=self.tev[:,1]+(uind_tev*dt)
         self.tev[:,2]=self.tev[:,2]+(wind_tev*dt)
-        self.lev[:,1]=self.lev[:,1]#+(uind_lev*dt)
-        self.lev[:,2]=self.lev[:,2]#+(wind_lev*dt)
+        self.lev[:,1]=self.lev[:,1]+(uind_lev*dt)
+        self.lev[:,2]=self.lev[:,2]+(wind_lev*dt)
 
 
         # Cropping LEV and tEV arrays is not done here
@@ -703,31 +777,38 @@ class ldvm:
 
         #The components of normal force and moment from induced velocities are calulcated in dimensional units and nondimensionalized later
 
-        nonl=0
+        non_l=0
         nonl_m=0
 
 
         #nonl=np.sum(((uind*np.cos(self.alpha[self.i_step]))-(wind*np.sin(self.alpha[self.i_step])))*bound_int[:,0])
+
+        for i_div in range(1,self.n_div):
+            non_l=non_l+(((uind[0,i_div]*np.cos(self.alpha[self.i_step]))-(wind[0,i_div]*np.sin(self.alpha[self.i_step])))*bound_int[i_div-1,0])
+            nonl_m=nonl_m+(((uind[0,i_div]*np.cos(self.alpha[self.i_step]))-(wind[0,i_div]*np.sin(self.alpha[self.i_step])))*(self.x[i_div])*bound_int[i_div-1,0])
         #nonl_m=np.sum(((uind*np.cos(self.alpha[self.i_step]))-(wind*np.sin(self.alpha[self.i_step])))*(self.x[1:])*bound_int[:,0])
 
 
-        nonl=nonl*(2/(self.u_ref*self.u_ref*self.chord))
+        non_l=non_l*(2/(self.u_ref*self.u_ref*self.chord))
 
         nonl_m=nonl_m*(2/(self.u_ref*self.u_ref*self.chord*self.chord))
+        
 
 
 
-        cn=cnc+cnnc+nonl
+        cn=cnc+cnnc+non_l
 
         cl=cn*np.cos(self.alpha[self.i_step])+cs*np.sin(self.alpha[self.i_step])
         cd=cn*np.sin(self.alpha[self.i_step])-cs*np.cos(self.alpha[self.i_step])
 
         
-        #cm=cn*self.cm_pvt-(2*np.pi*(((self.u[self.i_step]*np.cos(self.alpha[self.i_step])/self.u_ref)+(self.hdot[self.i_step]*np.sin(self.alpha[self.i_step])/self.u_ref))*((self.aterm[0]/4)+(self.aterm[1]/4)-(self.aterm[2]/8))+(self.chord/self.u_ref)*((7*adot[0]/16)+(3*adot[1]/16)+(adot[2]/16)-(adot[3]/64))))-nonl_m
-        
-        self.bound_circ_save.append(bound_circ[0])
+        cm=cn*self.cm_pvt-(2*np.pi*(((self.u[self.i_step]*np.cos(self.alpha[self.i_step])/self.u_ref)+(self.hdot[self.i_step]*np.sin(self.alpha[self.i_step])/self.u_ref))*((self.aterm[0]/4)+(self.aterm[1]/4)-(self.aterm[2]/8))+(self.chord/self.u_ref)*((7*adot0/16)+(3*adot1/16)+(adot2/16)-(adot3/64))))-nonl_m
 
-        return cl, cd, 0, lesp, re_le,
+        print("adot0",adot0,adot1,adot2,adot3)
+        
+        self.bound_circ_save.append(bound_circ)
+
+        return cl, cd, cm, lesp, re_le,cn
 
 
 
@@ -742,7 +823,7 @@ if __name__ == "__main__":
         'chord': 1.0,
         'pvt': 0.0,
         'cm_pvt': 0.0,
-        'foil_name': '../LDVM_v2.5/sd7003.dat',
+        'foil_name': 'sd7012.dat',
         're_ref': 30000,
         'lesp_crit': 0.18,
         'motion_file_name': 'motion_pr_amp45_k0.2.dat',
@@ -755,10 +836,15 @@ if __name__ == "__main__":
     ldvm_instance.load_motion()
     ldvm_instance.initialize_computation()
     cl_history = []
+    cd_history = []
+    cm_history = []
     for i in range(499):
         #print(ldvm_instance.alpha[:i]*180/np.pi)
-        cl, cd, _, lesp, re_le=ldvm_instance.step()
+        cl, cd, cm, lesp, re_le,cn=ldvm_instance.step()
         cl_history.append(cl)
+        cd_history.append(cd)
+        cm_history.append(cm)  # Assuming cm is not calculated in this example
+
         print('gamma {} at time {}'.format(ldvm_instance.bound_circ_save[-1], ldvm_instance.time[ldvm_instance.i_step]))
         if i%20 ==22:
 
@@ -777,18 +863,33 @@ if __name__ == "__main__":
     data=np.loadtxt('../LDVM_v2_original.5/force_pr_amp45_k0.2_le.dat',skiprows=1)
     gamma_lit=data[:,4]
     cl_lit=data[:,8]
-
+    plt.figure()
     plt.plot(ldvm_instance.time[1:ldvm_instance.i_step+1],ldvm_instance.bound_circ_save,'r-',label='my LDVM',markersize=2)
+    
     plt.plot(data[:,0],gamma_lit,'b-',label='literature',markersize=2)
     plt.xlabel('time')
     plt.ylabel('bound circulation')
     plt.legend()
     plt.show()
+    plt.figure()
     
-    plt.plot(ldvm_instance.time[:ldvm_instance.i_step],cl_history,'r-',label='my LDVM',markersize=2)
-    plt.plot(data[:,0],cl_lit,'bo',label='literature',markersize=2)
+    plt.plot(ldvm_instance.time[1:ldvm_instance.i_step+1],cl_history,'r-',label='my LDVM',markersize=2)
+    plt.plot(data[:,0],cl_lit,'b-',label='literature',markersize=2)
     plt.xlabel('time')
     plt.ylabel('lift')
+    plt.legend()
+
+    plt.figure()
+    plt.plot(ldvm_instance.time[1:ldvm_instance.i_step+1],cd_history,'r-',label='my LDVM',markersize=2)
+    plt.plot(data[:,0],data[:,9],'b-',label='literature',markersize=2)
+    plt.xlabel('time')
+    plt.ylabel('drag')
+    plt.legend()
+    plt.figure()
+    plt.plot(ldvm_instance.time[1:ldvm_instance.i_step+1],cm_history,'r-',label='my LDVM',markersize=2)
+    plt.plot(data[:,0],data[:,10],'b-',label='literature',markersize=2)
+    plt.xlabel('time')
+    plt.ylabel('moment')
     plt.legend()
     plt.show()
     print('moyenne LEV',np.mean(np.abs(ldvm_instance.lev[:,0])))
@@ -798,11 +899,11 @@ if __name__ == "__main__":
 
     data_vor=np.loadtxt('../LDVM_v2_original.5/data_vortex.dat')
     print('len data_vor',)
-    lev_circ=data_vor[:228,0]
-    tev_circ=data_vor[228:-69,0]
+    lev_circ=data_vor[:297,0]
+    tev_circ=data_vor[297:-69,0]
 
     plt.figure()
-    plt.plot(np.abs((lev_circ-ldvm_instance.lev[:,0])),'ro')
+    plt.plot(np.abs((lev_circ-ldvm_instance.lev[:297,0])),'ro')
     plt.plot(np.abs((lev_circ+1e-15)),'go')
 
     plt.yscale('log')

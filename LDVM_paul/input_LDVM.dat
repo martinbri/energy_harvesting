@@ -2,7 +2,7 @@
 1.						!U_ref
 0.0						!Pivot(0-1)
 0.0						!Cm reference(0-1)
-sd7003.dat				        !Airfoil File
+sd7012.dat				        !Airfoil File
 30000						!Reference Reynolds number
 0.18						!Critical LESP
 motion_pr_amp45_k0.2.dat			!Input motion Filename
