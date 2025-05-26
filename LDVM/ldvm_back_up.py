@@ -4,6 +4,17 @@ import scipy as scp
 import pandas
 from scipy.integrate import trapezoid
 import time
+import matplotlib.colorbar as cbar
+from matplotlib.animation import FuncAnimation
+from matplotlib.colors import Normalize
+from matplotlib.cm import ScalarMappable
+import matplotlib.gridspec as gridspec
+
+parameters = {'axes.labelsize': 12,
+          'axes.titlesize': 12,
+          'xtick.labelsize':12,
+          'ytick.labelsize':12}   
+plt.rcParams.update(parameters)
 
 class ldvm:
     def __init__(self, config=None):
@@ -481,7 +492,7 @@ class ldvm:
                 if (abs(kelv[iter])<self.eps and abs(kutta[iter])<self.eps):
                     break
                 tev_iter[iter+1]=tev_iter[iter]-((1/(dkelv_tev*dkutta_lev-dkelv_lev*dkutta_tev))*((dkutta_lev*kelv[iter])-(dkelv_lev*kutta[iter])))
-                # print("check incriminated line", lev_iter[iter],dkelv_tev[0],dkutta_lev[0],dkelv_lev[0],dkutta_tev[0],dkutta_tev[0],kelv[iter],dkelv_tev[0],kutta[iter])
+
                 lev_iter[iter+1]=lev_iter[iter]-((1/(dkelv_tev*dkutta_lev-dkelv_lev*dkutta_tev))*((-dkutta_tev*kelv[iter])+(dkelv_tev*kutta[iter])))
                 
                 
@@ -535,17 +546,9 @@ class ldvm:
         gamma = np.zeros(self.n_div)
  
         gamma+=(self.aterm[0]*(1+np.cos(self.theta)))
-        # print("naterm",self.n_aterm)
-        # print("aterm",self.aterm[0:5])
-        # if self.lev.size>0:
-        #     input('dd')
         for i_aterm in range(1, self.n_aterm):
             gamma+=(self.aterm[i_aterm]*np.sin(i_aterm*self.theta)*np.sin(self.theta))
 
-        #self.bound_vortex_pos[:,0]=gamma
-        # if self.lev.size>0:
-        #     print("gamma",gamma[0:5])
-        #     input("ff")
 
         bound_int=np.zeros((self.n_div-1,3))
         bound_int[:,0]=((gamma[1:]+gamma[:-1])/2)*self.dtheta
@@ -559,28 +562,6 @@ class ldvm:
         uind_tev=np.zeros(self.n_tev) # Vitesse induite sur les TEV        
         
         wind_tev=np.zeros(self.n_tev)
-
-        # for i_tev in range (self.n_tev):
-        #     for j_tev in range (self.n_tev):
-        #         x_dist=self.tev[j_tev,1]-self.tev[i_tev,1]
-        #         z_dist=self.tev[j_tev,2]-self.tev[i_tev,2]
-        #         dist=x_dist**2+z_dist**2
-        #         uind_tev[i_tev]=uind_tev[i_tev]+self.tev[j_tev,0]*(-z_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
-        #         wind_tev[i_tev]=wind_tev[i_tev]-self.tev[j_tev,0]*(-x_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
-
-        #     for j_lev in range (self.n_lev):
-        #         x_dist=self.lev[j_lev,1]-self.tev[i_tev,1]
-        #         z_dist=self.lev[j_lev,2]-self.tev[i_tev,2]
-        #         dist=x_dist**2+z_dist**2
-        #         uind_tev[i_tev]=uind_tev[i_tev]+self.lev[j_lev,0]*(-z_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
-        #         wind_tev[i_tev]=wind_tev[i_tev]-self.lev[j_lev,0]*(-x_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
-            
-        #     for j_bound in range (self.n_div-1):
-        #         x_dist=bound_int[j_bound,1]-self.tev[i_tev,1]
-        #         z_dist=bound_int[j_bound,2]-self.tev[i_tev,2]
-        #         dist=x_dist**2+z_dist**2
-        #         uind_tev[i_tev]=uind_tev[i_tev]+bound_int[j_bound,0]*(-z_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
-        #         wind_tev[i_tev]=wind_tev[i_tev]-bound_int[j_bound,0]*(-x_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
 
         
         xdist_TEV_TEV=np.tile(self.tev[:,1], (len(self.tev[:,1]), 1)).T- np.tile(self.tev[:,1], (len(self.tev[:,1]), 1))
@@ -646,29 +627,6 @@ class ldvm:
         
         uind_lev=np.zeros(self.n_lev) 
         wind_lev=np.zeros(self.n_lev)
-
-        # for i_lev in range (self.n_lev):
-        #     for j_lev in range (self.n_lev):
-        #         x_dist=self.lev[j_lev,1]-self.lev[i_lev,1]
-        #         z_dist=self.lev[j_lev,2]-self.lev[i_lev,2]
-        #         dist=x_dist**2+z_dist**2
-        #         uind_lev[i_lev]=uind_lev[i_lev]+self.lev[j_lev,0]*(-z_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
-        #         wind_lev[i_lev]=wind_lev[i_lev]-self.lev[j_lev,0]*(-x_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
-            
-        #     for j_tev in range (self.n_tev):
-        #         x_dist=self.tev[j_tev,1]-self.lev[i_lev,1]
-        #         z_dist=self.tev[j_tev,2]-self.lev[i_lev,2]
-        #         dist=x_dist**2+z_dist**2
-        #         uind_lev[i_lev]=uind_lev[i_lev]+self.tev[j_tev,0]*(-z_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
-        #         wind_lev[i_lev]=wind_lev[i_lev]-self.tev[j_tev,0]*(-x_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
-            
-        #     for j_bound in range (self.n_div-1):
-        #         x_dist=bound_int[j_bound,1]-self.lev[i_lev,1]
-        #         z_dist=bound_int[j_bound,2]-self.lev[i_lev,2]
-        #         dist=x_dist**2+z_dist**2
-        #         uind_lev[i_lev]=uind_lev[i_lev]+bound_int[j_bound,0]*(-z_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
-        #         wind_lev[i_lev]=wind_lev[i_lev]-bound_int[j_bound,0]*(-x_dist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
-            
             
 
         #Vitesse LEV sur LEV
@@ -728,27 +686,7 @@ class ldvm:
         uind_lev=uind_lev+Gamma@Ustar
         wind_lev=wind_lev-Gamma@Wstar
         
-        # if self.time[self.i_step]>4.5:
-        #     print("time",self.time[self.i_step])
-        #     print("uind_tev",uind_tev.shape)
-        #     print("uind_lev",uind_tev[0,-4:])     
-        #     print("wind_lev",wind_tev[0,-4:])
-        #     print("Gamma",Gamma[0,-4:])
-        #     #print("lev",self.lev[:,0])
-        #     #print("xpos",self.lev[:,1])
-        #     #print("zpos",self.lev[:,2])
-        #     print("x_lev",self.lev[-4:,1])
-        #     print("z_lev",self.lev[-4:,2])
-        #     print("gamma bound int",bound_int[:5,0])
-        #     #print("xdist_TEV_LEVshape",xdist_TEV_LEV.shape)
-        #     #print("xdist_TEV_LEV",xdist_TEV_LEV[-4:])
-        #     input("check")  
 
-        
-        # print("Gamma",Gamma[0,:4])
-        # print('uind_tev',uind_tev)
-        # print('wind_tev',wind_tev)
-        #input("check") 
 
 
         dt=self.time[self.i_step]-self.time[self.i_step-1]
@@ -809,6 +747,159 @@ class ldvm:
         self.bound_circ_save.append(bound_circ)
 
         return cl, cd, cm, lesp, re_le,cn
+    
+    def make_ldvm_animation(self, add_reference=False,file_reference='../LDVM_v2_original.5/flow_pr_amp45_k0.2_le.dat',colorscale=False):
+        # Create an animation of the LDVM simulation
+        
+        if add_reference:
+
+            if colorscale:
+                fig = plt.figure(figsize=(10, 10),tight_layout=True)
+                gs = gridspec.GridSpec(200, 200,figure=fig)
+                fig.subplots_adjust(left=0.01, right=0.98, top=0.98, bottom=0.02, wspace=0.2, hspace=0.2)
+                ax = fig.add_subplot(gs[:80, :])
+                ax2 = fig.add_subplot(gs[82:162, :])    
+                ax3 = fig.add_subplot(gs[170:175, :])
+                ax3.set_xlabel('Circulation')
+                ax3.set_yticks([])
+                
+
+            else:
+                fig, axs = plt.subplots(2,1,figsize=(10, 8),tight_layout=True)
+                ax = axs[0]
+                ax2 = axs[1]
+            ax2.set_xlim(-8, 1)
+            ax2.set_ylim(-2, 2)
+            ax2.set_yticks([])
+            ax2.set_xticks([])
+
+            
+            
+
+            self.ref_data = np.loadtxt(file_reference) 
+            
+
+        else:
+            if colorscale:
+                fig = plt.figure(figsize=(10, 5),tight_layout=True)
+                gs = gridspec.GridSpec(100, 50,figure=fig)
+                fig.subplots_adjust(left=0.01, right=0.98, top=0.98, bottom=0.02, wspace=0.2, hspace=0.2)
+                ax = fig.add_subplot(gs[:80, :])
+                ax3 = fig.add_subplot(gs[85:90, :])
+                ax3.set_xlabel('Circulation')
+                
+                ax3.set_yticks([])
+            else:
+                fig, ax = plt.subplots(1,1,figsize=(10, 4),tight_layout=True)
+        ax.set_xlim(-8, 1)
+
+        ax.set_ylim(-2, 2)
+        ax.set_yticks([])
+        ax.set_xticks([])
+        bound_vortex_line, = ax.plot([], [], 'k-')
+        if colorscale:
+            cmap = plt.get_cmap('coolwarm')
+
+            norm = Normalize(vmin=-0.05, vmax=0.05)
+            sm = ScalarMappable(cmap=cmap, norm=norm)
+            sm.set_array([])  # Only needed for colorbar
+
+            lev_line = ax.scatter([], [], c=[], cmap=cmap, norm=norm, s=2)
+            tev_line = ax.scatter([], [], c=[], cmap=cmap, norm=norm, s=2)
+            if add_reference:
+                lev_line_ref = ax2.scatter([], [], c=[], cmap=cmap, norm=norm, s=2)
+                tev_line_ref = ax2.scatter([], [], c=[], cmap=cmap, norm=norm, s=2)
+                bound_vortex_line_ref, = ax2.plot([], [], 'k-')
+            colorbar = cbar.ColorbarBase(ax3,norm=norm,orientation='horizontal',cmap=cmap)
+            ax3.set_xlabel('Circulation (m$^2$/s)')
+            
+        else:
+            lev_line, = ax.plot([], [], 'ro', markersize=2)
+            tev_line, = ax.plot([], [], 'bo', markersize=2)
+        
+
+
+
+            if add_reference:
+                lev_line_ref, = ax2.plot([], [], 'ro', markersize=2)
+                tev_line_ref, = ax2.plot([], [], 'bo', markersize=2)
+                bound_vortex_line_ref, = ax2.plot([], [], 'k-')
+            
+        
+
+        def init():
+            bound_vortex_line.set_data([], [])
+            if colorscale:
+
+                lev_line.set_offsets(np.empty((0, 2)))
+                tev_line.set_offsets(np.empty((0, 2)))
+                if add_reference:
+                    lev_line_ref.set_offsets(np.empty((0, 2)))
+                    tev_line_ref.set_offsets(np.empty((0, 2)))
+
+            else:
+                lev_line.set_data([], [])
+                tev_line.set_data([], [])
+            
+                if add_reference:
+                    lev_line_ref.set_data([], [])
+                    tev_line_ref.set_data([], [])
+                    bound_vortex_line_ref.set_data([], [])
+                
+            
+                    return lev_line, tev_line, bound_vortex_line, lev_line_ref, tev_line_ref, bound_vortex_line_ref
+            return lev_line, tev_line, bound_vortex_line
+
+        def update(frame):
+            
+            self.step()  # Perform a step to update the state
+            if colorscale:
+                lev_line.set_offsets(np.c_[self.lev[:, 1], self.lev[:, 2]])
+                if self.lev.shape[0] > 0:
+                    lev_line.set_array(self.lev[:, 0])  # Color by circulation
+
+
+                # Update TEV points and colors
+                tev_line.set_offsets(np.c_[self.tev[:, 1], self.tev[:, 2]])
+                if self.tev.shape[0] > 0:
+                    tev_line.set_array(self.tev[:, 0])  # Color by circulation
+
+                if add_reference:
+                    nan_rows = np.where(np.isnan(self.ref_data).all(axis=1))[0]
+                    dat=self.ref_data[nan_rows[0]+1:nan_rows[1],:]
+                    lev_line_ref.set_offsets(np.c_[dat[:self.n_lev, 1], dat[:self.n_lev, 2]])
+                    if dat[:self.n_lev, 0].size > 0:
+                        lev_line_ref.set_array(dat[:self.n_lev, 0])
+                    tev_line_ref.set_offsets(np.c_[dat[self.n_lev:self.n_lev+self.n_tev, 1], dat[self.n_lev:self.n_lev+self.n_tev, 2]])
+                    if dat[self.n_lev:self.n_lev+self.n_tev, 0].size > 0:
+                        tev_line_ref.set_array(dat[self.n_lev:self.n_lev+self.n_tev, 0])
+                    bound_vortex_line_ref.set_data(dat[-69:, 1], dat[-69:, 2])
+                    self.ref_data = self.ref_data[nan_rows[1]:,:]  # Update 
+            else:    
+                lev_line.set_data(self.lev[:, 1], self.lev[:, 2])
+                tev_line.set_data(self.tev[:, 1], self.tev[:, 2])
+                if add_reference:
+                    nan_rows = np.where(np.isnan(self.ref_data).all(axis=1))[0]
+                    dat=self.ref_data[nan_rows[0]+1:nan_rows[1],:]
+                    lev_line_ref.set_data(dat[:self.n_lev, 1], dat[:self.n_lev, 2])
+                    tev_line_ref.set_data(dat[self.n_lev:self.n_lev+self.n_tev, 1], dat[self.n_lev:self.n_lev+self.n_tev, 2])
+                    bound_vortex_line_ref.set_data(dat[-69:, 1], dat[-69:, 2])
+                    self.ref_data = self.ref_data[nan_rows[1]:,:]  # Update ref_data to the next segment
+
+            bound_vortex_line.set_data(self.bound_vortex_pos[:, 1], self.bound_vortex_pos[:, 2])
+            print("frame",frame)
+            if True:
+                ax.text(
+                0.95, 0.95, r"$t^*$ = {:.2f}".format(self.time[frame]),
+                horizontalalignment='right',
+                verticalalignment='top',
+                transform=ax.transAxes,
+                bbox=dict(facecolor='white', edgecolor='none', boxstyle='round,pad=0.2'))
+            return lev_line, tev_line, bound_vortex_line
+
+        ani = FuncAnimation(fig, update, frames=499, init_func=init, blit=True)
+        ani.save('ldvm_animation.mp4', writer='ffmpeg', fps=20)
+        #plt.show()
 
 
 
@@ -833,12 +924,15 @@ if __name__ == "__main__":
     }
 
     ldvm_instance = ldvm(config)
+    
     ldvm_instance.load_motion()
     ldvm_instance.initialize_computation()
+    ldvm_instance.make_ldvm_animation(add_reference=True,colorscale=True)
+    fdf
     cl_history = []
     cd_history = []
     cm_history = []
-    for i in range(499):
+    for i in range(100):
         #print(ldvm_instance.alpha[:i]*180/np.pi)
         cl, cd, cm, lesp, re_le,cn=ldvm_instance.step()
         cl_history.append(cl)
@@ -860,6 +954,7 @@ if __name__ == "__main__":
             plt.show()
 
             pass
+    ldvm_instance.make_ldvm_animation(add_reference=True)
     data=np.loadtxt('../LDVM_v2_original.5/force_pr_amp45_k0.2_le.dat',skiprows=1)
     gamma_lit=data[:,4]
     cl_lit=data[:,8]
