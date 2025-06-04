@@ -30,32 +30,27 @@ class ldvm:
             self.u_ref=np.float64(config['u_ref'])
             self.chord=np.float64(config['chord'])
             self.pvt=np.float64(config['pvt'])
+            self.rho=np.float64(config['rho'])
             self.cm_pvt=np.float64(config['cm_pvt'])
             self.foil_name=config['foil_name']
             self.re_ref=np.float64(config['re_ref'])
             self.lesp_crit=np.float64(config['lesp_crit'])
 
-            self.motion_file_name=config['motion_file_name']
-            self.force_file_name=config['force_file_name']
-            self.flow_file_name=config['flow_file_name']
-            self.n_pts_flow=config['n_pts_flow']
         else:
             self.u_ref=np.float64(1.0)
             self.chord=np.float64(1.0)
             self.pvt=np.float64(0.25)
+            self.rho=np.float64(1.225)
             self.cm_pvt=0.25
             self.foil_name='NACA0012'
             self.re_ref=float(1e6)
-            self.lesp_crit=0.5
-
-            self.motion_file_name='motion.csv'
-            self.force_file_name='force.csv'
-            self.flow_file_name='flow.csv'
-            self.n_pts_flow=100
+            self.lesp_crit=0.18
 
 
-
-
+        #Geometric parameters
+        self.dtheta=np.pi/(self.n_div-1)
+        self.theta = np.linspace(0, np.pi, self.n_div)
+        self.x=(self.chord/2.)*(1-np.cos(self.theta))
 
         ##Dimmensionalize parameters
         self.v_core=self.v_core*self.chord
@@ -89,9 +84,7 @@ class ldvm:
 
         self.u = motion_data['u'].values*self.u_ref
 
-        self.dtheta=np.pi/(self.n_div-1)
-        self.theta = np.linspace(0, np.pi, self.n_div)
-        self.x=(self.chord/2.)*(1-np.cos(self.theta))
+
 
         ## ADD Camber computation stuff
         self.alphadot=np.diff(self.alpha)/np.diff(self.time)
@@ -169,9 +162,9 @@ class ldvm:
             plt.plot(self.x, cam, 'g-', label='camber')
             plt.legend()
             plt.show()
-        return cam, cam_slope
+        return 0*cam, 0*cam_slope
 
-    def calc_downwash_boundcirc(self):
+    def calc_downwash_boundcirc(self,u,alpha,hdot,alphadot):
 
         uind=np.zeros((1,self.n_div))
         wind=np.zeros((1,self.n_div))
@@ -198,12 +191,12 @@ class ldvm:
         uind=uind+Gamma@Ustar
         wind=wind-Gamma@Wstar
         # Compute the downwash
-        downwash=(-self.u[self.i_step]*np.sin(self.alpha[self.i_step]))+\
-            (-uind*np.sin(self.alpha[self.i_step]))+\
-            (self.hdot[self.i_step]*np.cos(self.alpha[self.i_step]))+\
-            (-wind*np.cos(self.alpha[self.i_step]))+\
-            (-self.alphadot[self.i_step]*(self.x-self.pvt*self.chord))+\
-            (self.cam_slope*((uind*np.cos(self.alpha[self.i_step]))+(self.u[self.i_step]*np.cos(self.alpha[self.i_step]))+(self.hdot[self.i_step]*np.sin(self.alpha[self.i_step]))+(-wind*np.sin(self.alpha[self.i_step]))))
+        downwash=(-u*np.sin(alpha))+\
+            (-uind*np.sin(alpha))+\
+            (hdot*np.cos(alpha))+\
+            (-wind*np.cos(alpha))+\
+            (-alphadot*(self.x-self.pvt*self.chord))+\
+            (self.cam_slope*((uind*np.cos(alpha))+(u*np.cos(alpha))+(hdot*np.sin(alpha))+(-wind*np.sin(alpha))))
 
         aterm0=0.0
         aterm1=0.0
@@ -218,7 +211,7 @@ class ldvm:
         return aterm0, aterm1, downwash,bound_circ,uind,wind
 
 
-    def one_D_tev_shedding(self):
+    def one_D_tev_shedding(self,t,t_minus_1,u,alpha,hdot,alphadot):
         # Perform tev shedding assuming LEV is not formed.
         #TEV shed at every time step
         tev_iter=np.zeros(101)
@@ -227,7 +220,7 @@ class ldvm:
         tev_iter[1]=-0.01
 
         if self.n_tev==0:
-            x_tev=self.bound_vortex_pos[self.n_div-1,1]+0.5*self.u[self.i_step]*(self.time[self.i_step]-self.time[self.i_step-1])
+            x_tev=self.bound_vortex_pos[self.n_div-1,1]+0.5*u*(t-t_minus_1)
             y_tev= self.bound_vortex_pos[self.n_div-1,2]
             self.tev=np.concatenate((self.tev, np.array([[0, x_tev, y_tev]])), axis=0)
         else:
@@ -239,7 +232,7 @@ class ldvm:
         while (iter<self.iter_max-1):
             iter=iter+1
             self.tev[self.n_tev,0]=tev_iter[iter]
-            aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc()
+            aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc(u,alpha,hdot,alphadot)
             kelv[iter]=self.kelv_enf
             if self.lev.size>0:
                 kelv[iter]+=np.sum(self.lev[:,0])
@@ -254,13 +247,13 @@ class ldvm:
             print('1D iteration failed, the residual is ', abs(kelv[iter]))
         return downwash,aterm0,aterm1,bound_circ,uind,wind
 
-    def two_D_lev_tev_shedding(self,le_vel_x,le_vel_y,lesp):
+    def two_D_lev_tev_shedding(self,le_vel_x,le_vel_y,lesp,t,t_minus_1,u,alpha,hdot,alphadot):
 
-        tev_iter=np.zeros(101)
-        lev_iter=np.zeros(101)
-        kelv=np.zeros(100)
+        tev_iter=np.zeros(102)
+        lev_iter=np.zeros(102)
+        kelv=np.zeros(101)
 
-        kutta=np.zeros(100)
+        kutta=np.zeros(101)
 
         #2D iteration if LESP_crit is exceeded
         if (abs(lesp)>self.lesp_crit):
@@ -279,11 +272,11 @@ class ldvm:
         lev_iter[1]=0.01
 
         if (self.levflag==0) :
-            x_lev=self.bound_vortex_pos[0,1]+(0.5*le_vel_x*(self.time[self.i_step]-self.time[self.i_step-1]))
-            y_lev=self.bound_vortex_pos[0,2]+(0.5*le_vel_y*(self.time[self.i_step]-self.time[self.i_step-1]))
+            x_lev=self.bound_vortex_pos[0,1]+(0.5*le_vel_x*(t-t_minus_1))
+            y_lev=self.bound_vortex_pos[0,2]+(0.5*le_vel_y*(t-t_minus_1))
         else:
-            x_lev=self.bound_vortex_pos[0,1]+((1./3.)*(self.lev[self.n_lev-1,1]-self.bound_vortex_pos[0,1]))
-            y_lev=self.bound_vortex_pos[0,2]+((1./3.)*(self.lev[self.n_lev-1,2]-self.bound_vortex_pos[0,2]))
+            x_lev=self.bound_vortex_pos[0,1]+((1./3.)*(t-t_minus_1))
+            y_lev=self.bound_vortex_pos[0,2]+((1./3.)*(t-t_minus_1))
         self.lev=np.concatenate((self.lev, np.array([[0, x_lev, y_lev]])), axis=0)
         self.levflag=1
 
@@ -299,7 +292,7 @@ class ldvm:
 
             self.tev[self.n_tev,0]=tev_iter[iter]
 
-            aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc()
+            aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc(u,alpha,hdot,alphadot)
 
 
             kelv_tev=self.kelv_enf
@@ -317,7 +310,7 @@ class ldvm:
             self.lev[self.n_lev,0]=lev_iter[iter]
             self.tev[self.n_tev,0]=tev_iter[iter-1]
 
-            aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc()
+            aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc(u,alpha,hdot,alphadot)
             kelv_lev=self.kelv_enf
 
             kelv_lev+=np.sum(self.lev[:,0])
@@ -335,7 +328,7 @@ class ldvm:
             self.lev[self.n_lev,0]=lev_iter[iter]
             self.tev[self.n_tev,0]=tev_iter[iter]
 
-            aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc()
+            aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc(u,alpha,hdot,alphadot)
             kelv[iter]=self.kelv_enf
             kelv[iter]+=np.sum(self.lev[:,0])
             kelv[iter]+=np.sum(self.tev[:,0])
@@ -361,7 +354,7 @@ class ldvm:
 
         return aterm0, aterm1, downwash, bound_circ,uind,wind
 
-    def wake_rollup(self,bound_int):
+    def wake_rollup(self,bound_int,dt):
                 # Update Tev numbers
         self.n_tev=self.n_tev+1
 
@@ -450,7 +443,6 @@ class ldvm:
         uind_lev=uind_lev+Gamma@Ustar
         wind_lev=wind_lev-Gamma@Wstar
 
-        dt=self.time[self.i_step]-self.time[self.i_step-1]
 
         ##Update TEV and LEV positions
         self.tev[:,1]=self.tev[:,1]+(uind_tev*dt)
@@ -460,42 +452,49 @@ class ldvm:
 
 
         # Cropping LEV and tEV arrays is not done here
-    def compute_forces(self, bound_int, uind, wind, adot0, adot1, adot2, adot3):
-                #Load coefficient calculation (nondimensional units)
+    def compute_forces(self, bound_int, uind, wind, adot0, adot1, adot2, adot3,u, alpha, hdot):
+        #Load coefficient calculation (nondimensional units)
 
-        cnc=(2*np.pi*((self.u[self.i_step]*np.cos(self.alpha[self.i_step])/self.u_ref)+(self.hdot[self.i_step]*np.sin(self.alpha[self.i_step])/self.u_ref))*(self.aterm[0]+self.aterm[1]/2))
-        cnnc=(2*np.pi*((3*self.chord*adot0/(4*self.u_ref))+(self.chord*adot1/(4*self.u_ref))+(self.chord*adot2/(8*self.u_ref))))
+        cnc=2*np.pi*((u*np.cos(alpha)/self.u_ref)+(hdot*np.sin(alpha)/self.u_ref))*(self.aterm[0]+self.aterm[1]/2)
+        cnnc=2*np.pi*((3*self.chord*adot0/(4*self.u_ref))+(self.chord*adot1/(4*self.u_ref))+(self.chord*adot2/(8*self.u_ref)))
         cs=2*np.pi*self.aterm[0]*self.aterm[0]
         #The components of normal force and moment from induced velocities are calulcated in dimensional units and nondimensionalized later
         non_l=0
         nonl_m=0
         #nonl=np.sum(((uind*np.cos(self.alpha[self.i_step]))-(wind*np.sin(self.alpha[self.i_step])))*bound_int[:,0])
         for i_div in range(1,self.n_div):
-            non_l=non_l+(((uind[0,i_div]*np.cos(self.alpha[self.i_step]))-(wind[0,i_div]*np.sin(self.alpha[self.i_step])))*bound_int[i_div-1,0])
-            nonl_m=nonl_m+(((uind[0,i_div]*np.cos(self.alpha[self.i_step]))-(wind[0,i_div]*np.sin(self.alpha[self.i_step])))*(self.x[i_div])*bound_int[i_div-1,0])
+            non_l=non_l+(((uind[0,i_div]*np.cos(alpha))-(wind[0,i_div]*np.sin(alpha)))*bound_int[i_div-1,0])
+            nonl_m=nonl_m+(((uind[0,i_div]*np.cos(alpha))-(wind[0,i_div]*np.sin(alpha)))*(self.x[i_div])*bound_int[i_div-1,0])
         non_l=non_l*(2/(self.u_ref*self.u_ref*self.chord))
         nonl_m=nonl_m*(2/(self.u_ref*self.u_ref*self.chord*self.chord))
         cn=cnc+cnnc+non_l
-        cl=cn*np.cos(self.alpha[self.i_step])+cs*np.sin(self.alpha[self.i_step])
-        cd=cn*np.sin(self.alpha[self.i_step])-cs*np.cos(self.alpha[self.i_step])
-        cm=cn*self.cm_pvt-(2*np.pi*(((self.u[self.i_step]*np.cos(self.alpha[self.i_step])/self.u_ref)+(self.hdot[self.i_step]*np.sin(self.alpha[self.i_step])/self.u_ref))*((self.aterm[0]/4)+(self.aterm[1]/4)-(self.aterm[2]/8))+(self.chord/self.u_ref)*((7*adot0/16)+(3*adot1/16)+(adot2/16)-(adot3/64))))-nonl_m
+        cl=cn*np.cos(alpha)+cs*np.sin(alpha)
+        cd=cn*np.sin(alpha)-cs*np.cos(alpha)
+        cm=cn*self.cm_pvt-(2*np.pi*(((u*np.cos(alpha)/self.u_ref)+(hdot*np.sin(alpha)/self.u_ref))*((self.aterm[0]/4)+(self.aterm[1]/4)-(self.aterm[2]/8))+(self.chord/self.u_ref)*((7*adot0/16)+(3*adot1/16)+(adot2/16)-(adot3/64))))-nonl_m
 
         return cl, cd, cm, cn
 
 
-    def step(self):
+    def step(self,t,t_minus_1, alpha, h, u, alphadot, hdot):
+
+        print('t', t, 't_minus_1', t_minus_1, 'alpha', alpha, 'h', h, 'u', u, 'alphadot', alphadot, 'hdot', hdot)
+
+       
+        
 
         # Perform a single step of the computation
         self.i_step+=1
-        print("Step: {}, number of lev {}, number of tev {}, time {},tmax ={}".format(self.i_step, self.n_lev, self.n_tev,self.time[self.i_step],self.time[-1]))
+        print("Step: {}, number of lev {}, number of tev {}, time {}".format(self.i_step, self.n_lev, self.n_tev,t))
         #Calculate bound vortex positions at this time step
-        self.dist_wind=self.dist_wind+(self.u[self.i_step-1]*(self.time[self.i_step]-self.
-        time[self.i_step-1]))
+        print(self.dist_wind)
+        self.dist_wind=self.dist_wind+(u*(t-t_minus_1))
+        print('dist_wind, ', self.dist_wind)
 
-        self.bound_vortex_pos[:,1]=-((self.chord-self.pvt*self.chord)+((self.pvt*self.chord-self.x)*np.cos(self.alpha[self.i_step]))+self.dist_wind) + (self.cam*np.sin(self.alpha[self.i_step]))
-        self.bound_vortex_pos[:,2]=self.h[self.i_step]+((self.pvt*self.chord-self.x)*np.sin(self.alpha[self.i_step]))+(self.cam*np.cos(self.alpha[self.i_step]))
 
-        downwash,aterm0,aterm1,bound_circ,uind,wind=self.one_D_tev_shedding()
+        self.bound_vortex_pos[:,1]=-((self.chord-self.pvt*self.chord)+((self.pvt*self.chord-self.x)*np.cos(alpha))+self.dist_wind) + (self.cam*np.sin(alpha))
+        self.bound_vortex_pos[:,2]=h+((self.pvt*self.chord-self.x)*np.sin(alpha))+(self.cam*np.cos(alpha))
+
+        downwash,aterm0,aterm1,bound_circ,uind,wind=self.one_D_tev_shedding(t,t_minus_1,u,alpha,hdot,alphadot)
 
         #Comupte the fourier terms
         self.aterm[2]=0.0
@@ -506,15 +505,15 @@ class ldvm:
 
 
             self.aterm[i_aterm]=(2./(self.u_ref*np.pi))*self.aterm[i_aterm]
-        adot0=(aterm0-self.aterm_prev[0])/(self.time[self.i_step]-self.time[self.i_step-1])
-        adot1=(aterm1-self.aterm_prev[1])/(self.time[self.i_step]-self.time[self.i_step-1])
-        adot2=(self.aterm[2]-self.aterm_prev[2])/(self.time[self.i_step]-self.time[self.i_step-1])
-        adot3=(self.aterm[3]-self.aterm_prev[3])/(self.time[self.i_step]-self.time[self.i_step-1])
+        adot0=(aterm0-self.aterm_prev[0])/(t-t_minus_1)
+        adot1=(aterm1-self.aterm_prev[1])/(t-t_minus_1)
+        adot2=(self.aterm[2]-self.aterm_prev[2])/(t-t_minus_1)
+        adot3=(self.aterm[3]-self.aterm_prev[3])/(t-t_minus_1)
 
 
 
-        le_vel_x=(self.u[self.i_step])-(self.alphadot[self.i_step]*np.sin(self.alpha[self.i_step])*self.pvt*self.chord)+uind[0,0]
-        le_vel_y=-(self.alphadot[self.i_step]*np.cos(self.alpha[self.i_step])*self.pvt*self.chord)-(self.hdot[self.i_step])+wind[0,0]
+        le_vel_x=(u)-(alphadot*np.sin(alpha)*self.pvt*self.chord)+uind[0,0]
+        le_vel_y=-(alphadot*np.cos(alpha)*self.pvt*self.chord)-(hdot)+wind[0,0]
         vmag=np.sqrt(le_vel_x*le_vel_x+le_vel_y*le_vel_y)
         re_le=self.re_ref*vmag/self.u_ref
         lesp=aterm0
@@ -522,7 +521,7 @@ class ldvm:
         #Shed the TEV and LEV if LESP crit is exceeded
         if (abs(lesp)>self.lesp_crit):
             print("A LEV is formed")
-            aterm0, aterm1, downwash, bound_circ,uind,wind=self.two_D_lev_tev_shedding(le_vel_x,le_vel_y,lesp)
+            aterm0, aterm1, downwash, bound_circ,uind,wind=self.two_D_lev_tev_shedding(le_vel_x,le_vel_y,lesp, t, t_minus_1, u, alpha, hdot, alphadot)
 
         else:
             self.levflag=0
@@ -558,16 +557,18 @@ class ldvm:
         bound_int[:,2]=(self.bound_vortex_pos[:-1,2]+self.bound_vortex_pos[1:,2])/2
         # Wake Rollup
 
-        self.wake_rollup(bound_int)
+        self.wake_rollup(bound_int,t-t_minus_1)
 
 
 
-        cl, cd, cm,cn= self.compute_forces(bound_int, uind, wind, adot0, adot1, adot2, adot3)
+        cl, cd, cm,cn= self.compute_forces(bound_int, uind, wind, adot0, adot1, adot2, adot3, u, alpha, hdot)
 
 
         self.bound_circ_save.append(bound_circ)
 
-        return cl, cd, cm, lesp, re_le,cn
+        print(cl,cm)
+
+        return cl, cd, cm
 
     def make_ldvm_animation(self, add_reference=False,file_reference='../LDVM_v2_original.5/flow_pr_amp45_k0.2_le.dat',colorscale=False):
         # Create an animation of the LDVM simulation
@@ -717,6 +718,7 @@ if __name__ == "__main__":
         'u_ref': 1.0,
         'chord': 1.0,
         'pvt': 0.0,
+        'rho': 1.225,
         'cm_pvt': 0.0,
         'foil_name': 'sd7012.dat',
         're_ref': 30000,
@@ -754,6 +756,7 @@ if __name__ == "__main__":
     data=np.loadtxt('../LDVM_v2_original.5/force_pr_amp45_k0.2_le.dat',skiprows=1)
     gamma_lit=data[:,4]
     cl_lit=data[:,8]
+    print(data.shape)
     plt.figure()
     plt.plot(ldvm_instance.time[1:ldvm_instance.i_step+1],ldvm_instance.bound_circ_save,'r-',label='my LDVM',markersize=2)
 
