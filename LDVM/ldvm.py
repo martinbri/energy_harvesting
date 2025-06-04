@@ -260,9 +260,10 @@ class ldvm:
         
         tev_iter=np.zeros(101, dtype=np.float128)
         lev_iter=np.zeros(101,  dtype=np.float128)
-        kutta=np.zeros(100, dtype=np.float128)
-        kelv=np.zeros(100, dtype=np.float128)
+        kutta=np.zeros(101, dtype=np.float128)
+        kelv=np.zeros(101, dtype=np.float128)
         tev_iter[0]=np.float128(0)
+        
         tev_iter[1]=np.float128(-0.01)
 
         if self.n_tev==0:

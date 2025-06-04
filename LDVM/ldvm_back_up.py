@@ -165,6 +165,7 @@ class ldvm:
         return 0*cam, 0*cam_slope
 
     def calc_downwash_boundcirc(self,u,alpha,hdot,alphadot):
+        print('u, alpha, hdot, alphadot', u, alpha, hdot, alphadot)
 
         uind=np.zeros((1,self.n_div))
         wind=np.zeros((1,self.n_div))
@@ -207,6 +208,9 @@ class ldvm:
         aterm0=(-1./(self.u_ref*np.pi))*aterm0
         aterm1=(2./(self.u_ref*np.pi))*aterm1
         bound_circ=self.u_ref*self.chord*np.pi*(aterm0+(aterm1/2.))
+
+        print('aterm0, aterm1, bound_circ', aterm0, aterm1, bound_circ)
+        print('downwash', downwash[0,0:5])
 
         return aterm0, aterm1, downwash,bound_circ,uind,wind
 
@@ -478,6 +482,7 @@ class ldvm:
     def step(self,t,t_minus_1, alpha, h, u, alphadot, hdot):
 
         print('t', t, 't_minus_1', t_minus_1, 'alpha', alpha, 'h', h, 'u', u, 'alphadot', alphadot, 'hdot', hdot)
+        
 
        
         
