@@ -204,13 +204,11 @@ class ldvm:
         for i_div in range (1,self.n_div):
             aterm0=aterm0+(((downwash[0,i_div]+downwash[0,i_div-1])/2)*self.dtheta)
             aterm1=aterm1+(((downwash[0,i_div]*np.cos(self.theta[i_div])+downwash[0,i_div-1]*np.cos(self.theta[i_div-1]))/2)*self.dtheta)
+        
 
         aterm0=(-1./(self.u_ref*np.pi))*aterm0
         aterm1=(2./(self.u_ref*np.pi))*aterm1
         bound_circ=self.u_ref*self.chord*np.pi*(aterm0+(aterm1/2.))
-
-        print('aterm0, aterm1, bound_circ', aterm0, aterm1, bound_circ)
-        print('downwash', downwash[0,0:5])
 
         return aterm0, aterm1, downwash,bound_circ,uind,wind
 
@@ -471,10 +469,16 @@ class ldvm:
             nonl_m=nonl_m+(((uind[0,i_div]*np.cos(alpha))-(wind[0,i_div]*np.sin(alpha)))*(self.x[i_div])*bound_int[i_div-1,0])
         non_l=non_l*(2/(self.u_ref*self.u_ref*self.chord))
         nonl_m=nonl_m*(2/(self.u_ref*self.u_ref*self.chord*self.chord))
+
+        print('cnc, cnnc, cs, non_l, nonl_m', cnc, cnnc, cs, non_l, nonl_m)
+        #input('dd')
+
         cn=cnc+cnnc+non_l
         cl=cn*np.cos(alpha)+cs*np.sin(alpha)
         cd=cn*np.sin(alpha)-cs*np.cos(alpha)
         cm=cn*self.cm_pvt-(2*np.pi*(((u*np.cos(alpha)/self.u_ref)+(hdot*np.sin(alpha)/self.u_ref))*((self.aterm[0]/4)+(self.aterm[1]/4)-(self.aterm[2]/8))+(self.chord/self.u_ref)*((7*adot0/16)+(3*adot1/16)+(adot2/16)-(adot3/64))))-nonl_m
+
+        
 
         return cl, cd, cm, cn
 
@@ -573,9 +577,19 @@ class ldvm:
 
         print(cl,cm)
 
+        #Remove TEV and LEV if they are too far away
+        del_dist=10*self.chord
+
+
+        if (self.tev[0,1]-self.bound_vortex_pos[-1,1])>del_dist:
+                self.kelv_enf=self.kelv_enf+self.tev[0,0]
+                self.tev=np.delete(self.tev, 0, axis=0)
+                self.n_tev=self.n_tev-1
+
+
         return cl, cd, cm
 
-    def make_ldvm_animation(self, add_reference=False,file_reference='../LDVM_v2_original.5/flow_pr_amp45_k0.2_le.dat',colorscale=False):
+    def make_ldvm_animation(self, add_reference=False,n_frames=1000,file_reference='../LDVM_v2_original.5/flow_pr_amp45_k0.2_le.dat',colorscale=False):
         # Create an animation of the LDVM simulation
 
         if add_reference:
@@ -592,8 +606,8 @@ class ldvm:
                 fig, axs = plt.subplots(2,1,figsize=(10, 8),tight_layout=True)
                 ax = axs[0]
                 ax2 = axs[1]
-            ax2.set_xlim(-8, 1)
-            ax2.set_ylim(-2, 2)
+            ax2.set_xlim(-6, 1/2)
+            ax2.set_ylim(-1/8,1/8 )
             ax2.set_yticks([])
             ax2.set_xticks([])
             self.ref_data = np.loadtxt(file_reference)
@@ -660,7 +674,7 @@ class ldvm:
 
         def update(frame):
 
-            self.step()  # Perform a step to update the state
+            #self.step()  # Perform a step to update the state
             if colorscale:
                 lev_line.set_offsets(np.c_[self.lev[:, 1], self.lev[:, 2]])
                 if self.lev.shape[0] > 0:
@@ -689,14 +703,16 @@ class ldvm:
                 if add_reference:
                     nan_rows = np.where(np.isnan(self.ref_data).all(axis=1))[0]
                     dat=self.ref_data[nan_rows[0]+1:nan_rows[1],:]
-                    lev_line_ref.set_data(dat[:self.n_lev, 1], dat[:self.n_lev, 2])
-                    tev_line_ref.set_data(dat[self.n_lev:self.n_lev+self.n_tev, 1], dat[self.n_lev:self.n_lev+self.n_tev, 2])
+                    print('dat',dat.shape)
+                    
+                    #lev_line_ref.set_data(dat[:self.n_lev, 1], dat[:self.n_lev, 2])
+                    tev_line_ref.set_data(dat[:-69, 1], dat[:-69, 2])
                     bound_vortex_line_ref.set_data(dat[-69:, 1], dat[-69:, 2])
                     self.ref_data = self.ref_data[nan_rows[1]:,:]  # Update ref_data to the next segment
 
             bound_vortex_line.set_data(self.bound_vortex_pos[:, 1], self.bound_vortex_pos[:, 2])
             print("frame",frame)
-            if True:
+            if False:
                 ax.text(
                 0.95, 0.95, r"$t^*$ = {:.2f}".format(self.time[frame]),
                 horizontalalignment='right',
@@ -705,7 +721,7 @@ class ldvm:
                 bbox=dict(facecolor='white', edgecolor='none', boxstyle='round,pad=0.2'))
             return lev_line, tev_line, bound_vortex_line
 
-        ani = FuncAnimation(fig, update, frames=499, init_func=init, blit=True)
+        ani = FuncAnimation(fig, update, frames=n_frames, init_func=init, blit=True)
         ani.save('ldvm_animation.mp4', writer='ffmpeg', fps=20)
         #plt.show()
 
@@ -720,15 +736,15 @@ if __name__ == "__main__":
     t_start = time.time()
     # Example usage
     config = {
-        'u_ref': 1.0,
-        'chord': 1.0,
-        'pvt': 0.0,
+        'u_ref': 5,
+        'chord': 0.15,
+        'pvt': 0.25,
         'rho': 1.225,
-        'cm_pvt': 0.0,
+        'cm_pvt': 0.25,
         'foil_name': 'sd7012.dat',
         're_ref': 30000,
-        'lesp_crit': 0.18,
-        'motion_file_name': 'motion_pr_amp45_k0.2.dat',
+        'lesp_crit': 50,
+        'motion_file_name': 'flutter_data.dat',
         'force_file_name': 'force_pr_amp45_k0.2_le.csv',
         'flow_file_name': 'flow.csv',
         'n_pts_flow': 100
@@ -737,9 +753,9 @@ if __name__ == "__main__":
     ldvm_instance = ldvm(config)
 
 
-    ldvm_instance.load_motion()
+    #ldvm_instance.load_motion()
     ldvm_instance.initialize_computation()
-    #ldvm_instance.make_ldvm_animation(add_reference=True,colorscale=True)
+    ldvm_instance.make_ldvm_animation(add_reference=True,colorscale=False,file_reference='../LDVM_v2_original.5/vor_flut.dat')
 
     cl_history = []
     cd_history = []
@@ -790,6 +806,8 @@ if __name__ == "__main__":
     plt.ylabel('moment')
     plt.legend()
     plt.show()
+
+
 
 
 

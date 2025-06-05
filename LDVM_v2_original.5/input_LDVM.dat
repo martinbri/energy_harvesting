@@ -1,10 +1,10 @@
-1.						!Chord
-1.						!U_ref
-0.0						!Pivot(0-1)
-0.0						!Cm reference(0-1)
-sd7012.dat				        !Airfoil File
+0.15						!Chord
+5.0						!U_ref
+0.25						!Pivot(0-1)
+0.25					!Cm reference(0-1)
+flat_plate !sd7012.dat				        !Airfoil File
 30000						!Reference Reynolds number
-0.18 !Critical LESP
-motion_pr_amp45_k0.2.dat			!Input motion Filename
-force_pr_amp45_k0.2_le.dat			!Force Output filename
-flow_pr_amp45_k0.2_le.dat				1		!Flow Output Filename, Output frequency
+50 !Critical LESP
+flutter_data.dat			!Input motion Filename
+force_float.dat			!Force Output filename
+vor_flut.dat				1		!Flow Output Filename, Output frequency

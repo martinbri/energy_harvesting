@@ -16,7 +16,7 @@ class two_DOF_ldvm:
             self.pvt=np.float64(config['pvt'])
             self.u_ref=np.float64(config['u_ref'])
             self.cm_pvt=np.float64(config['cm_pvt'])
-            self.Ialpha=np.float64(config['Ialpha'])
+            #np.float64(config['Ialpha'])
             self.xg=np.float64(config['xg'])
             self.foil_name=config['foil_name']
             self.condition_initial=config['condition_initial']
@@ -38,7 +38,9 @@ class two_DOF_ldvm:
             self.condition_initial={'h0':self.c/10, 'alpha0':0.0, 'hdot':0.0, 'alphadot0':0.0}
             self.span=1.0
             self.rho=1.225
-        self.dt_computation=1/500  # Time step for computation, based on the chord length and reference speed
+        self.dt_computation=1/1000  # Time step for computation, based on the chord length and reference speed
+        self.xf=self.pvt*self.c
+        self.Ialpha=self.m/3*(self.c*self.c-3*self.c*self.xf+3*self.xf*self.xf)
         print("natural frequency",np.sqrt(self.kh/self.m))
         print("natural frequency alpha",np.sqrt(self.kalpha/self.Ialpha))
         print("dt_computation",self.dt_computation)
@@ -54,11 +56,12 @@ class two_DOF_ldvm:
         print("kh",self.kh)
         print('Ialpha',self.Ialpha)
         print("kalpha",self.kalpha)
-        #input("Press Enter to continue...")
+        print('S',self.m*(self.xg-self.xf))
+        input("Press Enter to continue...")
 
 
         self.ldvm=ldvm(config=config)
-        self.xf=self.pvt*self.c
+        
         self.ldvm.initialize_computation()
     def make_mass_matrix(self):
         s=self.m*(self.xg-self.xf)
@@ -149,7 +152,7 @@ class two_DOF_ldvm:
         Q=np.vstack((l1,l2))
         self.Q=Q
         print("Q",Q)
-        #input("Press Enter to continue...")
+        input("Press Enter to continue...")
 
         return Q
     
@@ -210,26 +213,29 @@ class two_DOF_ldvm:
         print("cm", cm)
         #input("Press Enter to continue...")
         
-        loads = np.array([-l, m])
+        loads = np.array([l, m])
 
         return loads
 if __name__ == "__main__":
+    chord = 0.15
+    u=5.
+    pvt=0.25
     config = {
         'mass': 3.0,
-        'chord': 0.15,
+        'chord': chord,
         'kh': 200,
         'kalpha': 4,
-        'pvt': 0.25*0.15,
-        'u_ref': 1.0,
-        'cm_pvt': 0.25*0.15,
+        'pvt': pvt,
+        'u_ref': u,
+        'cm_pvt': pvt,
         'Ialpha': 0.0098,
-        'xg': 0.5*0.15,
+        'xg': 0.5*chord,
         'foil_name': 'sd7012.dat',
         'condition_initial': {'h0': 0.015, 'alpha0': 0.0, 'hdot': 0.0, 'alphadot0': 0.0},
         'span': 0.45,
         'rho': 1.225,
         're_ref':30000,
-        'lesp_crit':50.0
+        'lesp_crit':50
     }
     model = two_DOF_ldvm(config)
 
@@ -238,25 +244,28 @@ if __name__ == "__main__":
   
 
     data=pandas.read_csv('motion_pr_amp45_k0.2.dat',delim_whitespace=True)
-    print("data",data)
+    #print("data",data)
     times=data['time'].values
-    h=data['alpha'].values/10
+    h=data['alpha'].values/100
     alpha=data['h'].values*np.pi/180
     hdot=(h[1:]-h[:-1])/(times[1:]-times[:-1])
     alphadot=(alpha[1:]-alpha[:-1])/(times[1:]-times[:-1])
     hdot=np.hstack((0,hdot))
-    alphadot=np.hstack((0,alphadot))
+    lphadot=np.hstack((0,alphadot))
     X=np.array([hdot[0],alphadot[0],h[0],alpha[0]])
-    model.make_initial_conditions(data=np.array([X]))
+    X=model.make_initial_conditions()#data=np.array([X]))
     print(model.X_values)
-    
-    t=times[0]
+
     print("X",X)
+    
+    
+    # t=times[0]
+    # print("X",X)
 
 
     
     Q=model.make_first_order_matrices()
-    print("Q",Q)
+    
     X_t_minus_1=np.copy(X)
 
     l_theo_store=[]
@@ -267,15 +276,17 @@ if __name__ == "__main__":
 
 
     
-    for i in range(1,500):
+    for i in range(1,10000):
         b=model.c/2
         xcg=model.xf - model.xg
         a=xcg/b
         X_second= (X[:2]-X_t_minus_1[:2])/model.dt_computation
+        print(model.dt_computation)
+        
 
-        loads=model.compute_current_loads(X=X,t=times[i],t_minus_1=times[i-1],u=model.u_ref)
-        l_ldvm_store.append(-loads[0]/(0.5*model.rho*model.u_ref**2*model.c))
-        m_ldvm_store.append(loads[1])
+        loads=model.compute_current_loads(X=X,t=model.t,t_minus_1=model.t_minus_1,u=model.u_ref)
+        l_ldvm_store.append(loads[0]/(0.5*model.rho*model.u_ref**2*model.c))
+        m_ldvm_store.append(loads[1]/(0.5*model.rho*model.u_ref**2*model.c**2))
 
         
 
@@ -283,19 +294,47 @@ if __name__ == "__main__":
         m_theo=-model.rho*(b)**2*(-a*np.pi*b*X_second[0]+np.pi*b**2*(1/8*a**2)*X_second[0]+np.pi*(0.5-a)*model.u_ref*b*X[1])+2*np.pi*model.rho*b**2*(1/2+a)*model.u_ref*(model.u_ref*X[3]+X[0]+model.c/2*(0.5-a)*X[1])
        
         l_theo_store.append(lift_theo/(0.5*model.rho*model.u_ref**2*model.c))
-        m_theo_store.append(m_theo)
+        m_theo_store.append(m_theo/(0.5*model.rho*model.u_ref**2*model.c**2))
 
         # input('dd')
-        #t,X=model.one_ODE_resolution_step((model.t,model.t+model.dt_computation),X,loads)#=np.array([-lift_theo,m_theo]))
-        t,X=times[i],np.array([hdot[i],alphadot[i],h[i],alpha[i]])
+
+
+        
+        t,X=model.one_ODE_resolution_step((model.t,model.t+model.dt_computation),X,loads)#=np.array([-loads[0],loads[1]]))
+        print("lift_theo",lift_theo)
+        print("m_theo",m_theo)
+        print('loads',loads)
+        print("X",X)
+        
+        #t,X=times[i],np.array([hdot[i],alphadot[i],h[i],alpha[i]])
         X_t_minus_1=np.copy(X)
-        model.t_values.append(times[i])
-        model.X_values=np.vstack((model.X_values,X))  # Stocke la dernière valeur obtenue
+        #model.t_values.append(times[i])
+        #model.X_values=np.vstack((model.X_values,X))  # Stocke la dernière valeur obtenue
         
         
 
         
     print(f"Step {i}, Time: {model.t:.2f}, State: {X}")
+    
+    save_data = np.column_stack((np.array([0]+model.t_values)*model.u_ref/model.c, model.X_values[:,3]*180/np.pi,model.X_values[:,2]/model.c,np.ones(len(model.t_values)+1)))
+
+
+    np.savetxt('flutter_data.dat', save_data, delimiter=' ')
+
+
+
+    resu_ldvm=np.loadtxt('../LDVM_v2_original.5/force_float.dat')
+
+    plt.figure()
+
+
+    plt.plot(model.t_values, model.ldvm.bound_circ_save, label='Bound Circulation')
+    plt.plot(resu_ldvm[:,0], resu_ldvm[:,4], label='Bound Circulation LDVM')
+    plt.xlabel('Time')
+    plt.ylabel('Bound Circulation')
+    plt.title('Bound Circulation vs Time')
+    plt.legend()
+
     plt.figure()
     plt.plot(model.t_values,model.X_values[1:,2]/model.c*2,label='h/b')
     plt.legend()
@@ -304,13 +343,29 @@ if __name__ == "__main__":
     plt.legend()
 
     
-
     plt.figure()
+    print("l_theo_store",len(l_theo_store))
+    print("l_ldvm_store",len(l_ldvm_store))
+    print(("len(model.t_values)",len(model.t_values)))
+    plt.plot(resu_ldvm[:,0], resu_ldvm[:,8], label='Lift LDVM fortran')
+
     plt.plot(model.t_values,l_theo_store, label='Lift theo')
     plt.plot(model.t_values,l_ldvm_store, label='Lift LDVM')
     data_ldvm=np.loadtxt('/home/disc/b.martin/Documents/energy_harvesting/LDVM_v2_original.5/force_pr_amp45_k0.2_le.dat')
     print("data_ldvm",data_ldvm.shape)
     cl_lit=data_ldvm[:,8]
-    plt.plot(data_ldvm[1:,0],cl_lit[:-1], label='Lift literature')
+    #plt.plot(data_ldvm[1:,0],cl_lit[:-1], label='Lift literature')
     plt.legend()
+
+
+    plt.figure(tight_layout=True)
+    plt.plot(model.t_values, m_theo_store, label='Moment theo')
+    plt.plot(model.t_values, np.array(m_ldvm_store), label='Moment LDVM')
+    plt.plot(resu_ldvm[:,0], resu_ldvm[:,10], label='Moment LDVM fortran')
+    plt.legend()
+    plt.xlabel('Time')
+    plt.ylabel('Moment coefficient')
+    plt.title('Moment Comparison')
     plt.show()
+
+
