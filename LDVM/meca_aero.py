@@ -202,7 +202,7 @@ class two_DOF_ldvm:
         print("t_minus_1", t_minus_1)
         print("X", X)
         h, alpha, hdot, alphadot = X
-        cl,cd,cm = self.ldvm.step( h=X[2], alpha=X[3], hdot=X[0], alphadot=X[1],t=t,t_minus_1=t_minus_1,u=u)
+        cl,cd,cm = self.ldvm.step( h=-X[2], alpha=X[3], hdot=-X[0], alphadot=X[1],t=t,t_minus_1=t_minus_1,u=u)# There is a minus sign on h because the ldvm model uses positive h for upwards motion 
         l=cl*(0.5*self.rho*self.u_ref**2*self.c)
         m=cm*(0.5*self.rho*self.u_ref**2*self.c**2)
 
@@ -213,12 +213,12 @@ class two_DOF_ldvm:
         print("cm", cm)
         #input("Press Enter to continue...")
         
-        loads = np.array([l, m])
+        loads = np.array([-l,m])
 
         return loads
 if __name__ == "__main__":
     chord = 0.15
-    u=5.
+    u=15.
     pvt=0.25
     config = {
         'mass': 3.0,
@@ -231,7 +231,7 @@ if __name__ == "__main__":
         'Ialpha': 0.0098,
         'xg': 0.5*chord,
         'foil_name': 'sd7012.dat',
-        'condition_initial': {'h0': 0.015, 'alpha0': 0.0, 'hdot': 0.0, 'alphadot0': 0.0},
+        'condition_initial': {'h0': 0.03, 'alpha0': 0.0, 'hdot': 0.0, 'alphadot0': 0.0},
         'span': 0.45,
         'rho': 1.225,
         're_ref':30000,
@@ -285,7 +285,7 @@ if __name__ == "__main__":
         
 
         loads=model.compute_current_loads(X=X,t=model.t,t_minus_1=model.t_minus_1,u=model.u_ref)
-        l_ldvm_store.append(loads[0]/(0.5*model.rho*model.u_ref**2*model.c))
+        l_ldvm_store.append(-loads[0]/(0.5*model.rho*model.u_ref**2*model.c))
         m_ldvm_store.append(loads[1]/(0.5*model.rho*model.u_ref**2*model.c**2))
 
         
@@ -316,7 +316,7 @@ if __name__ == "__main__":
         
     print(f"Step {i}, Time: {model.t:.2f}, State: {X}")
     
-    save_data = np.column_stack((np.array([0]+model.t_values)*model.u_ref/model.c, model.X_values[:,3]*180/np.pi,model.X_values[:,2]/model.c,np.ones(len(model.t_values)+1)))
+    save_data = np.column_stack((np.array([0]+model.t_values)*model.u_ref/model.c, model.X_values[:,3]*180/np.pi,-model.X_values[:,2]/model.c,np.ones(len(model.t_values)+1))) #minus sign on h because the ldvm model uses positive h for upwards motion
 
 
     np.savetxt('flutter_data.dat', save_data, delimiter=' ')
