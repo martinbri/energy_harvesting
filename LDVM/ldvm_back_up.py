@@ -84,7 +84,7 @@ class ldvm:
         self.time = motion_data['time'].values*self.chord/self.u_ref
 
         self.alpha = motion_data['alpha'].values*np.pi/180
-        self.h = motion_data['h'].values*self.chord
+        self.h = motion_data['h'].values *self.chord
 
         self.u = motion_data['u'].values*self.u_ref
 
@@ -99,7 +99,46 @@ class ldvm:
         self.hdot=np.concatenate(([self.hdot[0]], self.hdot))
       
 
+    def make_plots(self,cl_history,data_literature,cd_history,cm_history):
+        parameters = {'axes.labelsize': 14,
+          'axes.titlesize': 12,
+          'xtick.labelsize':14,
+          'ytick.labelsize':14}
+        plt.rcParams.update(parameters)
+
+        fig,ax=plt.subplots(2, 2, figsize=(8, 6),sharex=False)
+        ax[0,0].plot(self.xreq[self.n_div:]-1, self.y_coord_ans[self.n_div:], 'bo', label='interpolated',markersize=2)
+        ax[0,0].plot(self.xreq[:self.n_div], self.y_coord_ans[:self.n_div][::-1], 'bo', label='interpolated',markersize=2)
+        ax[0,0].plot(self.x, self.cam, 'g-', label='camber')
+        ax[0,0].plot(self.xcoord,self.ycoord,'k-', label='Airfoil Profile')
+        ax[0,0].axis('equal')  
+        ax[0,0].set_xticks([])
+        ax[0,0].set_yticks([])
+    
+        ax[0,1].plot(self.time[2:ldvm_instance.i_step+1],cl_history[1:],'r-',label='my LDVM',markersize=2)
+        ax[0,1].plot(data_literature[:,0],data_literature[:,8],'b--',label='literature',markersize=2)
+        ax[0,1].set_ylabel(r'$C_L$')
+    
+
+        ax[1,0].plot(self.time[1:ldvm_instance.i_step+1],cd_history,'r-',label='my LDVM',markersize=2)
+        ax[1,0].plot(data_literature[:,0],data_literature[:,9],'b--',label='literature',markersize=2)
+        ax[1,0].set_xlabel('time')
+        ax[1,0].set_ylabel(r'$C_D$')
+    
+        ax[1,1].plot(self.time[2:ldvm_instance.i_step+1],cm_history[1:],'r-',label='my LDVM',markersize=2)
+        ax[1,1].plot(data_literature[:,0],data_literature[:,10],'b--',label='literature',markersize=2)
+        ax[1,1].set_xlabel('time')
+        ax[1,1].set_ylabel(r'$C_m$')
         
+
+        fig.savefig('ldvm_validation.png', dpi=300, bbox_inches='tight')
+        plt.show()
+
+        
+
+
+
+
     def initialize_computation(self):
         # Initialize computation parameters
         self.n_lev=0
@@ -127,44 +166,49 @@ class ldvm:
         if self.foil_name== 'flate_plate':
             return np.zeros(self.n_div),np.zeros(self.n_div)
         data_profile=np.loadtxt(self.foil_name)
-        xcoord = data_profile[:, 0]
-        ycoord = data_profile[:, 1]
-        n_coord = len(xcoord)
+        self.xcoord = data_profile[:, 0]
+        self.ycoord = data_profile[:, 1]
+        n_coord = len(self.xcoord)
         
         xcoord_sum = np.zeros(n_coord)
-        plt.figure(figsize=(6, 6))
-        plt.plot(xcoord,ycoord,'k-', label='Airfoil Profile')
-        plt.axis('equal')  
+        # plt.figure(figsize=(6, 6))
+        # plt.plot(xcoord,ycoord,'k-', label='Airfoil Profile')
+        # plt.axis('equal')  
         
 
         # Compute cumulative distance
         for i in range(1, n_coord):
-            xcoord_sum[i] = xcoord_sum[i - 1] + abs(xcoord[i] - xcoord[i - 1])
+            xcoord_sum[i] = xcoord_sum[i - 1] + abs(self.xcoord[i] - self.xcoord[i - 1])
         
         
-        cs = CubicSpline(xcoord_sum, ycoord)#, bc_type="natural")  # 'natural' = second derivative zero at ends
+        cs = CubicSpline(xcoord_sum, self.ycoord)#, bc_type="natural")  # 'natural' = second derivative zero at ends
         ysplined = cs(xcoord_sum, 2)
-        y_coord_ans=np.zeros(2*self.n_div)
-        xreq=np.zeros(2*self.n_div)
-        xreq[:self.n_div]=self.x/self.chord
-        y_coord_ans[:self.n_div] = cs(xreq[:self.n_div])
+        self.y_coord_ans=np.zeros(2*self.n_div)
+        self.xreq=np.zeros(2*self.n_div)
+        self.xreq[:self.n_div]=self.x/self.chord
+        self.y_coord_ans[:self.n_div] = cs(self.xreq[:self.n_div])
 
-        xreq[self.n_div:]=self.x[self.n_div-1]/self.chord+self.x/self.chord        
-        y_coord_ans[self.n_div:] = cs(xreq[self.n_div:])
+        self.xreq[self.n_div:]=self.x[self.n_div-1]/self.chord+self.x/self.chord        
+        self.y_coord_ans[self.n_div:] = cs(self.xreq[self.n_div:])
 
-        plt.plot(xreq[self.n_div:]-1, y_coord_ans[self.n_div:], 'bo', label='interpolated',markersize=2)
-        plt.plot(xreq[:self.n_div], y_coord_ans[:self.n_div][::-1], 'bo', label='interpolated',markersize=2)
-        cam=np.zeros(self.n_div)
-        cam=(y_coord_ans[:self.n_div][::-1]+y_coord_ans[self.n_div:])/2
-        cam=cam*self.chord
+        # plt.plot(xreq[self.n_div:]-1, y_coord_ans[self.n_div:], 'bo', label='interpolated',markersize=2)
+        # plt.plot(xreq[:self.n_div], y_coord_ans[:self.n_div][::-1], 'bo', label='interpolated',markersize=2)
+        self.cam=np.zeros(self.n_div)
+        self.cam=(self.y_coord_ans[:self.n_div][::-1]+self.y_coord_ans[self.n_div:])/2
+        self.cam=self.cam*self.chord
         cam_slope=np.zeros(self.n_div)
-        cam_slope[0]=(cam[1]-cam[0])/(self.x[1]-self.x[0])
-        cam_slope[1:]=(cam[1:]-cam[:-1])/(self.x[1:]-self.x[:-1])
-        
-        plt.plot(self.x, cam, 'g-', label='camber')
-        plt.legend()
+        cam_slope[0]=(self.cam[1]-self.cam[0])/(self.x[1]-self.x[0])
+        cam_slope[1:]=(self.cam[1:]-self.cam[:-1])/(self.x[1:]-self.x[:-1])
+        fig,ax=plt.subplots(figsize=(4, 3))
+        ax.plot(self.xreq[self.n_div:]-1, self.y_coord_ans[self.n_div:], 'bo', label='interpolated',markersize=2)
+        ax.plot(self.xreq[:self.n_div], self.y_coord_ans[:self.n_div][::-1], 'bo', label='interpolated',markersize=2)
+        ax.plot(self.x, self.cam, 'g-', label='camber')
+        ax.plot(self.xcoord,self.ycoord,'k-', label='Airfoil Profile')
+        ax.axis('equal')  
+        ax.set_xticks([])
+        ax.set_yticks([])
         plt.show()
-        return cam, cam_slope
+        return self.cam, cam_slope
 
     def calc_downwash_boundcirc(self):
         # Placeholder for the actual downwash calculation
@@ -927,12 +971,12 @@ if __name__ == "__main__":
     
     ldvm_instance.load_motion()
     ldvm_instance.initialize_computation()
-    ldvm_instance.make_ldvm_animation(add_reference=True,colorscale=True)
-    fdf
+    #ldvm_instance.make_ldvm_animation(add_reference=True,colorscale=True)
+    #fdf
     cl_history = []
     cd_history = []
     cm_history = []
-    for i in range(100):
+    for i in range(499):
         #print(ldvm_instance.alpha[:i]*180/np.pi)
         cl, cd, cm, lesp, re_le,cn=ldvm_instance.step()
         cl_history.append(cl)
@@ -954,8 +998,12 @@ if __name__ == "__main__":
             plt.show()
 
             pass
-    ldvm_instance.make_ldvm_animation(add_reference=True)
+    #ldvm_instance.make_ldvm_animation(add_reference=True)
     data=np.loadtxt('../LDVM_v2_original.5/force_pr_amp45_k0.2_le.dat',skiprows=1)
+
+
+
+    ldvm_instance.make_plots(cl_history=cl_history, cd_history=cd_history, cm_history=cm_history, data_literature=data)
     gamma_lit=data[:,4]
     cl_lit=data[:,8]
     plt.figure()

@@ -74,7 +74,7 @@ double precision, dimension(300) :: x, theta, cam, cam_slope, gamma
 double precision :: dtheta, xreq
 double precision, dimension(1000) :: recalib, lespcalib, lesp_splined
 double precision, dimension(0:50) :: aterm,aterm_prev
-double precision, dimension(0:3) ::  adot
+double precision, dimension(0:3) :: adot
 double precision, dimension(300,3) :: bound, bound_int
 double precision, dimension(0:100) :: tev_iter, lev_iter, kelv, kutta
 double precision, dimension(expect_vort,3) :: tev, lev
