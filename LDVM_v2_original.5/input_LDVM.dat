@@ -1,5 +1,5 @@
 0.15						!Chord
-5.0						!U_ref
+15.35					!U_ref
 0.25						!Pivot(0-1)
 0.25					!Cm reference(0-1)
 flat_plate !sd7012.dat				        !Airfoil File

@@ -1,0 +1,30 @@
+\begin{thebibliography}{}
+
+\bibitem[Katz and Plotkin, 2001]{katz_plotkin}
+Katz, J. and Plotkin, A. (2001).
+\newblock {\em Low-speed aerodynamics}.
+\newblock Cambridge university press.
+
+\bibitem[Ramesh et~al., 2013]{ramesh_unsteady_2013}
+Ramesh, K., Gopalarathnam, A., Edwards, J.~R., Ol, M.~V., and Granlund, K.
+  (2013).
+\newblock An unsteady airfoil theory applied to pitching motions validated
+  against experiment and computation.
+\newblock {\em Theoretical and Computational Fluid Dynamics}, 27(6):843--864.
+\newblock Company: Springer Distributor: Springer Institution: Springer Label:
+  Springer Number: 6 Publisher: Springer Berlin Heidelberg.
+
+\bibitem[Ramesh et~al., 2014]{ramesh2014discrete}
+Ramesh, K., Gopalarathnam, A., Granlund, K., Ol, M.~V., and Edwards, J.~R.
+  (2014).
+\newblock Discrete-vortex method with novel shedding criterion for unsteady
+  aerofoil flows with intermittent leading-edge vortex shedding.
+\newblock {\em Journal of Fluid Mechanics}, 751:500--538.
+
+\bibitem[Ramesh et~al., 2011]{ramesh2011augmentation}
+Ramesh, K.~K., Gopalarathnam, A., Ol, M., Granlund, K., and Edwards, J. (2011).
+\newblock Augmentation of inviscid airfoil theory to predict and model 2d
+  unsteady vortex dominated flows.
+\newblock In {\em 41st AIAA Fluid Dynamics Conference and Exhibit}, page 3578.
+
+\end{thebibliography}
