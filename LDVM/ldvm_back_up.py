@@ -106,7 +106,7 @@ class ldvm:
           'ytick.labelsize':14}
         plt.rcParams.update(parameters)
 
-        fig,ax=plt.subplots(2, 2, figsize=(8, 6),sharex=False)
+        fig,ax=plt.subplots(2, 2, figsize=(8, 6),sharex=False,tight_layout=True)
         ax[0,0].plot(self.xreq[self.n_div:]-1, self.y_coord_ans[self.n_div:], 'bo', label='interpolated',markersize=2)
         ax[0,0].plot(self.xreq[:self.n_div], self.y_coord_ans[:self.n_div][::-1], 'bo', label='interpolated',markersize=2)
         ax[0,0].plot(self.x, self.cam, 'g-', label='camber')
@@ -131,7 +131,7 @@ class ldvm:
         ax[1,1].set_ylabel(r'$C_m$')
         
 
-        fig.savefig('ldvm_validation.png', dpi=300, bbox_inches='tight')
+        fig.savefig('ldvm_validation.pdf', dpi=300, bbox_inches='tight')
         plt.show()
 
         
