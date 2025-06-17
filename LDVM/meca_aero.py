@@ -218,7 +218,7 @@ class two_DOF_ldvm:
         return loads
 if __name__ == "__main__":
     chord = 0.15
-    u=15.
+    u=15.3
     pvt=0.25
     config = {
         'mass': 3.0,
@@ -231,7 +231,7 @@ if __name__ == "__main__":
         'Ialpha': 0.0098,
         'xg': 0.5*chord,
         'foil_name': 'sd7012.dat',
-        'condition_initial': {'h0': 0.03, 'alpha0': 0.0, 'hdot': 0.0, 'alphadot0': 0.0},
+        'condition_initial': {'h0': 0.015, 'alpha0': 0.0, 'hdot': 0.0, 'alphadot0': 0.0},
         'span': 0.45,
         'rho': 1.225,
         're_ref':30000,
@@ -316,7 +316,7 @@ if __name__ == "__main__":
         
     print(f"Step {i}, Time: {model.t:.2f}, State: {X}")
     
-    save_data = np.column_stack((np.array([0]+model.t_values)*model.u_ref/model.c, model.X_values[:,3]*180/np.pi,-model.X_values[:,2]/model.c,np.ones(len(model.t_values)+1))) #minus sign on h because the ldvm model uses positive h for upwards motion
+    save_data = np.column_stack((np.array([0]+model.t_values), model.X_values[:,3],model.X_values[:,2],np.ones(len(model.t_values)+1))) #minus sign on h because the ldvm model uses positive h for upwards motion
 
 
     np.savetxt('flutter_data.dat', save_data, delimiter=' ')

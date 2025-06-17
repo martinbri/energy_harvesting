@@ -11,6 +11,8 @@
 \usepackage{mathtools}
 \usepackage{xcolor}
 \usepackage{geometry}
+\usepackage[percent]{overpic} % in preamble
+
 
 
 \usepackage[authoryear]{natbib}
@@ -164,7 +166,7 @@ The strength od the TEV shed at the current time step is calculated such that Ke
 \end{equation}
 where $\Gamma_b$ is the bound circulation calculated by integrating the distribution of $\gamma$ over the airfoil chord. It satisfies:
     $\Gamma_b = U c \pi \left[ A_0(t) + \frac{1}{2} A_1(t) \right]$.
-If LEV shedding, the strength  of the $LEV$ shed at the current time step is determined such that  the instantaneous LESP value is made equal to the LESPc: $A_0(t)=LESPc$, if $A_0(t)<LESPc$ no LEV sheeding is performed.
+If LEV shedding, the strength  of the $LEV$ shed at the current time step is determined such that  the instantaneous LESP value is made equal to the LESPc: $A_0(t)=LESPc$, if $A_0(t)<LESPc$ no LEV sheding is performed.
 Note that in case of LEV shedding, two equations need to be satisfied whereas only one equation if no LEV shedding.
 Once computed the $LEV$ and $TEV$ circulations remain constant as the fluid is considered inviscid.
 
@@ -205,6 +207,36 @@ The moment on the airfoil is given by:
 \subsubsection{Validation of our implementation of the LDVM}
 
 The LDVM method has already been extensively validiated against high fidelity simulations in \cite{ramesh2014discrete}.  \cite{ramesh2014discrete} proposes an implementation of the LDVM in fortran95. However, in this work, the loads produced by the LDVM method are then used to compute the heave motion (Eq.~\ref{eq:plunge}), and the optimization target $\eta$. Therefore, to facilitate the communication between (i) the LDVM method, (ii) the dynamical model, and (iii) the optimization algorithm, the LDVM have been re-implemented with Python. This section presents the results of the Python implementation compared to the results of the LDVM method implemented in fortran95. 
+
+
+
+
+\begin{equation}
+G(t) = \ln \left[ 
+    \cosh\left( \frac{a U_\infty (t - t_1)}{c} \right)
+    \cosh\left( \frac{a U_\infty (t - t_4)}{c} \right)
+    \cosh\left( \frac{a U_\infty (t - t_2)}{c} \right)
+    \cosh\left( \frac{a U_\infty (t - t_3)}{c} \right)
+\right]
+\end{equation}
+where $a=2$ is a free parameter that determines the smoothing at the corners, and the times $t_1$ to $t_4$ are defined as:
+$t_1 = \text{time from reference 0 until start of ramp}, t_2 = t_1 + \frac{A}{2K}, t_3 = t_2 + \frac{\pi A}{4K} - \frac{A}{2K},
+    t_4 = t_3 + \frac{A}{2K}$, where $A$ is the amplitude of pitch (in radians) or plunge, and $K$ is the non-dimensional pitch/plunge rate.
+
+
+
+\begin{figure}
+  \centering
+  \begin{overpic}[width=0.98\textwidth]{images/ldvm_validation.pdf}
+      \put(10,70){{(a)}} % Adjust (x,y) as needed
+    \put(60,70){{(b)}}
+
+      \put(10,34){{(c)}} % Adjust (x,y) as needed
+    \put(60,34){{(d)}}
+  \end{overpic}
+  \caption{Validation of the LDVM implementation. (a) shows the profile (\textcolor{black}{-----}), its interpolation ($\color{blue}{\cdot \cdot}$) and the camber line (\textcolor{green}{-----}). (b), (c), (d) show respectively $C_L$, $C_D$, $C_m$ obtained with the fortran implementation (\textcolor{blue}{-~-~-}) and our python implementation (\textcolor{red}{-----}).}
+  \label{fig:validation_ldvm}
+\end{figure}
 
 
 

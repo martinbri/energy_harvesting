@@ -1,1 +1,6 @@
+*.aux
 LDVM_v2_original.5/vor_flut.dat
+*.blg
+*.fls
+*.log
+*.synctex.gz

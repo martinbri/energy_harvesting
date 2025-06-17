@@ -1,0 +1,17 @@
+\documentclass{standalone}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{tikz}
+\begin{document}
+\begin{tikzpicture}
+\begin{axis}[
+    xlabel={Time},
+    ylabel={$h$},
+    grid=major,
+    xmin=0, xmax=4,
+    ]
+    \addplot [no markers, line width=1pt, color=red] table [x index=0, y index=2, each nth point=100] {../data/flutter_data_U_15.3.dat};            
+    \addplot [no markers, line width=1pt, color=blue,  dash pattern=on 4pt off 2pt] table [x index=0, y index=1, each nth point=100] {../data/h_t_U_15.3.dat}; 
+    \end{axis}
+    \end{tikzpicture}
+\end{document}

@@ -1,15 +1,15 @@
 # Fdb version 3
-["bibtex report"] 1750087901 "report.aux" "report.bbl" "report" 1750088386
+["bibtex Semi-active flapping foil harvests energy using evolutionary strategies"] 1750088471 "Semi-active flapping foil harvests energy using evolutionary strategies.aux" "Semi-active flapping foil harvests energy using evolutionary strategies.bbl" "Semi-active flapping foil harvests energy using evolutionary strategies" 1750088472
   "/usr/share/texlive/texmf-dist/bibtex/bst/base/apalike.bst" 1292289607 24635 604dafcc79f521a11ea73e506e1fbd98 ""
+  "Semi-active flapping foil harvests energy using evolutionary strategies.aux" 1750088472 5971 7a330c00be9cac73dbb2797a93e00e9e "pdflatex"
   "biblio.bib" 1750076671 181765 8769a65e1e89c031699f6eef0c2c1a13 ""
-  "report.aux" 1750088385 5971 7a330c00be9cac73dbb2797a93e00e9e "pdflatex"
   (generated)
-  "report.bbl"
-  "report.blg"
-["pdflatex"] 1750088384 "/home/disc/b.martin/Documents/energy_harvesting/report_energy_harversting/report.tex" "report.pdf" "report" 1750088386
+  "Semi-active flapping foil harvests energy using evolutionary strategies.bbl"
+  "Semi-active flapping foil harvests energy using evolutionary strategies.blg"
+["pdflatex"] 1750088471 "/home/disc/b.martin/Documents/energy_harvesting/report_energy_harversting/Semi-active flapping foil harvests energy using evolutionary strategies.tex" "Semi-active flapping foil harvests energy using evolutionary strategies.pdf" "Semi-active flapping foil harvests energy using evolutionary strategies" 1750088472
   "/etc/texmf/web2c/texmf.cnf" 1744206936 475 c0e671620eb5563b2130f56340a5fde8 ""
   "/home/disc/b.martin/.texlive2021/texmf-var/web2c/pdftex/pdflatex.fmt" 1744379581 1405656 4d84df56165acaa2b244e93580628a9a ""
-  "/home/disc/b.martin/Documents/energy_harvesting/report_energy_harversting/report.tex" 1750088384 24832 6f7cf4829eb6c861c9f357dcca3f50af ""
+  "/home/disc/b.martin/Documents/energy_harvesting/report_energy_harversting/Semi-active flapping foil harvests energy using evolutionary strategies.tex" 1750088465 24832 6f7cf4829eb6c861c9f357dcca3f50af ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/jknappen/ec/ecbx0600.tfm" 1136768653 3584 ad9fcbc26a2a7bccd6d08b0a5792fbe0 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/jknappen/ec/ecbx0800.tfm" 1136768653 3584 269b66e921ba58750c12f7f1c8ea3ebd ""
@@ -257,6 +257,10 @@
   "/usr/share/texmf/fonts/type1/public/cm-super/sftt1200.pfb" 1744206943 167085 68de377d2744a68a88fa40a1f610615a ""
   "/usr/share/texmf/web2c/texmf.cnf" 1644012257 39432 7155514e09a3d69036fac785183a21c2 ""
   "/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map" 1744795575 4379155 98693266ff65f58d9f98aff394de12d2 ""
+  "Semi-active flapping foil harvests energy using evolutionary strategies.aux" 1750088472 5971 7a330c00be9cac73dbb2797a93e00e9e "pdflatex"
+  "Semi-active flapping foil harvests energy using evolutionary strategies.bbl" 1750088471 1959 859043f3611b3681e5d5597a8df70ce9 "bibtex Semi-active flapping foil harvests energy using evolutionary strategies"
+  "Semi-active flapping foil harvests energy using evolutionary strategies.out" 1750088472 1185 031e40ad4013ecf31d3b1d79202e90d3 "pdflatex"
+  "Semi-active flapping foil harvests energy using evolutionary strategies.tex" 1750088465 24832 6f7cf4829eb6c861c9f357dcca3f50af ""
   "figures/fig_alpha_comparison_15_3.pdf" 1750084100 34337 61b180d91942715bd3cb6863e28c12be ""
   "figures/fig_alpha_comparison_U_12.pdf" 1750084493 50482 3870f69ec1198a0ef66608b47d59fbf8 ""
   "figures/fig_alpha_comparison_U_5.pdf" 1750084398 50376 055fa08fb585ee87ee9db2619a1a376f ""
@@ -266,12 +270,8 @@
   "images/2DoF_wing.png" 1750071777 36837 1a241299f73277a3c4f688fc50883687 ""
   "images/ldvm_validation.pdf" 1750071704 30171 ed672fd84225f876b32c877f74e22866 ""
   "motion_pr_amp45_k0.2.dat" 1750073355 32500 21fe6b969a15c561969ae9adaef4c5d5 ""
-  "report.aux" 1750088385 5971 7a330c00be9cac73dbb2797a93e00e9e "pdflatex"
-  "report.bbl" 1750087901 1959 859043f3611b3681e5d5597a8df70ce9 "bibtex report"
-  "report.out" 1750088385 1185 031e40ad4013ecf31d3b1d79202e90d3 "pdflatex"
-  "report.tex" 1750088384 24832 6f7cf4829eb6c861c9f357dcca3f50af ""
   (generated)
-  "report.aux"
-  "report.log"
-  "report.out"
-  "report.pdf"
+  "Semi-active flapping foil harvests energy using evolutionary strategies.aux"
+  "Semi-active flapping foil harvests energy using evolutionary strategies.log"
+  "Semi-active flapping foil harvests energy using evolutionary strategies.out"
+  "Semi-active flapping foil harvests energy using evolutionary strategies.pdf"
