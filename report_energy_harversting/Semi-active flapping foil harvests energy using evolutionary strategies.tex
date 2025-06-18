@@ -260,10 +260,10 @@ The airfoil is subjected to a pitch motion with a maximal amplitude of $45^\circ
 The airfoil's pitch angle function is defined as the Eldredge function \cite{eldredge2009computational}:
 \begin{equation}
 \alpha(t) = \ln \left[
-    \cosh\left( \frac{a U_\infty (t - t_1)}{c} \right)
-    \cosh\left( \frac{a U_\infty (t - t_4)}{c} \right)
-    \cosh\left( \frac{a U_\infty (t - t_2)}{c} \right)
-    \cosh\left( \frac{a U_\infty (t - t_3)}{c} \right)
+    \frac{\cosh\left( \frac{a U_\infty (t - t_1)}{c} \right)
+    \cosh\left( \frac{a U_\infty (t - t_4)}{c} \right)}
+    {\cosh\left( \frac{a U_\infty (t - t_2)}{c} \right)
+    \cosh\left( \frac{a U_\infty (t - t_3)}{c} \right) }
 \right],
 \end{equation}
 where $a=2$ is a free parameter that determines the smoothing at the corners, and the times $t_1$ to $t_4$ are defined as:

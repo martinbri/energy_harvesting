@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from ldvm_back_up import ldvm
 from scipy.integrate import solve_ivp
 import pandas
+import time
 
 
 class two_DOF_ldvm:
@@ -41,23 +42,6 @@ class two_DOF_ldvm:
         self.dt_computation=1/1000  # Time step for computation, based on the chord length and reference speed
         self.xf=self.pvt*self.c
         self.Ialpha=self.m/3*(self.c*self.c-3*self.c*self.xf+3*self.xf*self.xf)
-        print("natural frequency",np.sqrt(self.kh/self.m))
-        print("natural frequency alpha",np.sqrt(self.kalpha/self.Ialpha))
-        print("dt_computation",self.dt_computation)
-        print("pvt",self.pvt)
-        print("foil_name",self.foil_name)
-        print("Ialpha",self.Ialpha)
-        print("xg",self.xg)
-        print("span",self.span)
-        print("rho",self.rho)
-        print("Reynolds number",self.u_ref*self.c/self.rho)
-        print("mass",self.m)
-        print("chord",self.c)
-        print("kh",self.kh)
-        print('Ialpha',self.Ialpha)
-        print("kalpha",self.kalpha)
-        print('S',self.m*(self.xg-self.xf))
-        input("Press Enter to continue...")
 
 
         self.ldvm=ldvm(config=config)
@@ -66,16 +50,7 @@ class two_DOF_ldvm:
     def make_mass_matrix(self):
         s=self.m*(self.xg-self.xf)
         Ialpha=self.Ialpha 
-        print("m",self.m)
-        print("s",s)
-        print("Ialpha",Ialpha)
-        print("span",self.span)
-        print("xg",self.xg)
-        print("xf",self.xf)
-        print("c",self.c)
-        print("pvt",self.pvt)
-        print("Ialpha",Ialpha)
-        print("mass matrix")
+
         #input("Press Enter to continue...")
         A=np.array([[self.m,s],
                    [s,Ialpha]])
@@ -83,13 +58,10 @@ class two_DOF_ldvm:
         self.A=A
         return A
     def make_stiffness_matrix(self):
-        print("kh",self.kh)
-        print("kalpha",self.kalpha)
-        print("span",self.span)
+
         E=np.array([[self.kh,0],
                    [0,self.kalpha]])
         E=E/self.span
-        print("E",E)
   
         return E    
     def make_damping_matrix(self):
@@ -135,24 +107,18 @@ class two_DOF_ldvm:
         A=self.make_mass_matrix()
         E=self.make_stiffness_matrix()
         C=self.make_damping_matrix()
-        print("A",A)
-        print("E",E)
-        print("C",C)
+
         
 
         A_inv=np.linalg.inv(A)
         self.A_inv=A_inv
         l1=np.hstack((-np.dot(A_inv,C),-np.dot(A_inv,E)))
         l2=np.hstack((np.eye(2),np.zeros((2,2))))
-        print('A_inv', A_inv)
-        
-        print("l1",l1.shape)
-        print("l2",l2)
+
 
         Q=np.vstack((l1,l2))
         self.Q=Q
-        print("Q",Q)
-        input("Press Enter to continue...")
+
 
         return Q
     
@@ -179,8 +145,6 @@ class two_DOF_ldvm:
         
         solution = solve_ivp(self.ODE, (t_span), X, args=(loads,), method='RK45')
         self.t_minus_1=self.t  # Update the previous time
-        print(t_span)
-        print("solution.t",solution)
 
         self.t=solution.t[-1]
         self.t_values.append(solution.t[-1])
@@ -198,19 +162,12 @@ class two_DOF_ldvm:
         Returns:
             array: computed loads according to the ldvm model
         """
-        print("t", t)
-        print("t_minus_1", t_minus_1)
-        print("X", X)
+
         h, alpha, hdot, alphadot = X
         cl,cd,cm = self.ldvm.step( h=-X[2], alpha=X[3], hdot=-X[0], alphadot=X[1],t=t,t_minus_1=t_minus_1,u=u)# There is a minus sign on h because the ldvm model uses positive h for upwards motion 
         l=cl*(0.5*self.rho*self.u_ref**2*self.c)
         m=cm*(0.5*self.rho*self.u_ref**2*self.c**2)
 
-        print("-l", -l) 
-        print("m", m)
-        print("u_ref", )
-        print("cl", cl)
-        print("cm", cm)
         #input("Press Enter to continue...")
         
         loads = np.array([-l,m])
@@ -218,7 +175,7 @@ class two_DOF_ldvm:
         return loads
 if __name__ == "__main__":
     chord = 0.15
-    u=15.3
+    u=12
     pvt=0.25
     config = {
         'mass': 3.0,
@@ -243,24 +200,20 @@ if __name__ == "__main__":
 
   
 
-    data=pandas.read_csv('motion_pr_amp45_k0.2.dat',delim_whitespace=True)
+   # data=pandas.read_csv('motion_pr_amp45_k0.2.dat',delim_whitespace=True)
     #print("data",data)
-    times=data['time'].values
-    h=data['alpha'].values/100
-    alpha=data['h'].values*np.pi/180
-    hdot=(h[1:]-h[:-1])/(times[1:]-times[:-1])
-    alphadot=(alpha[1:]-alpha[:-1])/(times[1:]-times[:-1])
-    hdot=np.hstack((0,hdot))
-    lphadot=np.hstack((0,alphadot))
-    X=np.array([hdot[0],alphadot[0],h[0],alpha[0]])
+    #times=data['time'].values
+    #h=data['alpha'].values/100
+    #alpha=data['h'].values*np.pi/180
+    #hdot=(h[1:]-h[:-1])/(times[1:]-times[:-1])
+    #alphadot=(alpha[1:]-alpha[:-1])/(times[1:]-times[:-1])
+    #hdot=np.hstack((0,hdot))
+    #lphadot=np.hstack((0,alphadot))
+    #X=np.array([hdot[0],alphadot[0],h[0],alpha[0]])
     X=model.make_initial_conditions()#data=np.array([X]))
-    print(model.X_values)
 
-    print("X",X)
     
-    
-    # t=times[0]
-    # print("X",X)
+
 
 
     
@@ -274,14 +227,13 @@ if __name__ == "__main__":
     m_ldvm_store=[]
 
 
-
+    time_deb=time.time()
     
     for i in range(1,10000):
         b=model.c/2
         xcg=model.xf - model.xg
         a=xcg/b
         X_second= (X[:2]-X_t_minus_1[:2])/model.dt_computation
-        print(model.dt_computation)
         
 
         loads=model.compute_current_loads(X=X,t=model.t,t_minus_1=model.t_minus_1,u=model.u_ref)
@@ -301,10 +253,7 @@ if __name__ == "__main__":
 
         
         t,X=model.one_ODE_resolution_step((model.t,model.t+model.dt_computation),X,loads)#=np.array([-loads[0],loads[1]]))
-        print("lift_theo",lift_theo)
-        print("m_theo",m_theo)
-        print('loads',loads)
-        print("X",X)
+  
         
         #t,X=times[i],np.array([hdot[i],alphadot[i],h[i],alpha[i]])
         X_t_minus_1=np.copy(X)
@@ -313,7 +262,8 @@ if __name__ == "__main__":
         
         
 
-        
+    time_end=time.time()
+    print(('Time for the simualtion',time_end-time_deb))
     print(f"Step {i}, Time: {model.t:.2f}, State: {X}")
     
     save_data = np.column_stack((np.array([0]+model.t_values), model.X_values[:,3],model.X_values[:,2],np.ones(len(model.t_values)+1))) #minus sign on h because the ldvm model uses positive h for upwards motion
