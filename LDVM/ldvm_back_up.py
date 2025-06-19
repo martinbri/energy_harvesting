@@ -360,6 +360,134 @@ class ldvm:
 
 
         return aterm0, aterm1, downwash, bound_circ,uind,wind
+    
+    def compute_shed_lev_tev(self,le_vel_x,le_vel_y,lesp):
+        
+        
+        # Compute the downwash, bound circulation, a0
+        uind=np.zeros((1,self.n_div))
+        wind=np.zeros((1,self.n_div))
+        # Compute wake induced velocity
+        xdist_TEV_Bound=np.tile(self.tev[:,1], (len(self.bound_vortex_pos[:,1]), 1)).T- np.tile(self.bound_vortex_pos[:,1], (len(self.tev[:,1]), 1))
+        zdist_TEV_Bound=np.tile(self.tev[:,2], (len(self.bound_vortex_pos[:,2]), 1)).T- np.tile(self.bound_vortex_pos[:,2], (len(self.tev[:,2]), 1))
+        dist=xdist_TEV_Bound**2+zdist_TEV_Bound**2
+        Gamma=(self.tev[:,0]).reshape(1,-1)
+        Ustar=(-zdist_TEV_Bound)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        Wstar=(-xdist_TEV_Bound)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        uind=uind+Gamma@Ustar
+
+        wind=wind-Gamma@Wstar
+        # Compute lev induced velocity
+
+        xdist_LEV_Bound=np.tile(self.lev[:,1], (len(self.bound_vortex_pos[:,1]), 1)).T- np.tile(self.bound_vortex_pos[:,1], (len(self.lev[:,1]), 1))
+        zdist_LEV_Bound=np.tile(self.lev[:,2], (len(self.bound_vortex_pos[:,2]), 1)).T- np.tile(self.bound_vortex_pos[:,2], (len(self.lev[:,2]), 1))
+        dist=xdist_LEV_Bound**2+zdist_LEV_Bound**2
+        Gamma=(self.lev[:,0]).reshape(1,-1)
+        Ustar=(-zdist_LEV_Bound)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        Wstar=(-xdist_LEV_Bound)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+
+
+        uind=uind+Gamma@Ustar
+        wind=wind-Gamma@Wstar
+        # Compute the downwash
+        downwash=(-self.u[self.i_step]*np.sin(self.alpha[self.i_step]))+\
+            (-uind*np.sin(self.alpha[self.i_step]))+\
+            (self.hdot[self.i_step]*np.cos(self.alpha[self.i_step]))+\
+            (-wind*np.cos(self.alpha[self.i_step]))+\
+            (-self.alphadot[self.i_step]*(self.x-self.pvt*self.chord))+\
+            (self.cam_slope*((uind*np.cos(self.alpha[self.i_step]))+(self.u[self.i_step]*np.cos(self.alpha[self.i_step]))+(self.hdot[self.i_step]*np.sin(self.alpha[self.i_step]))+(-wind*np.sin(self.alpha[self.i_step]))))
+
+        aterm0=0.0
+        aterm1=0.0
+        for i_div in range (1,self.n_div):
+            aterm0=aterm0+(((downwash[0,i_div]+downwash[0,i_div-1])/2)*self.dtheta)
+            aterm1=aterm1+(((downwash[0,i_div]*np.cos(self.theta[i_div])+downwash[0,i_div-1]*np.cos(self.theta[i_div-1]))/2)*self.dtheta)
+
+
+
+        aterm0=(-1./(self.u_ref*np.pi))*aterm0
+        aterm1=(2./(self.u_ref*np.pi))*aterm1
+        bound_circ=self.u_ref*self.chord*np.pi*(aterm0+(aterm1/2.))
+        
+        w= self.make_make_trapezoid_matrix(self.n_div,self.dtheta)
+        aterm0=np.dot(w,downwash)
+        aterm1=np.dot(w,downwash*np.cos(self.theta))
+        aterm0=(-1./(self.u_ref*np.pi))*aterm0
+        aterm1=(2./(self.u_ref*np.pi))*aterm1
+        bound_circ=self.u_ref*self.chord*np.pi*(aterm0+(aterm1/2.))
+        
+        
+        
+
+        if self.n_tev==0:
+            x_tev=self.bound_vortex_pos[self.n_div-1,1]+0.5*self.u[self.i_step]*(self.time[self.i_step]-self.time[self.i_step-1])
+            y_tev= self.bound_vortex_pos[self.n_div-1,2]
+            #self.tev=np.concatenate((self.tev, np.array([[0, x_tev, y_tev]])), axis=0)
+        else:
+            x_tev=self.bound_vortex_pos[self.n_div-1,1]+((1./3.)*(self.tev[self.n_tev-1,1]-self.bound_vortex_pos[self.n_div-1,1]))
+            y_tev=self.bound_vortex_pos[self.n_div-1,2]+((1./3.)*(self.tev[self.n_tev-1,2]-self.bound_vortex_pos[self.n_div-1,2]))
+            #self.tev=np.concatenate((self.tev, np.array([[0, x_tev, y_tev]])), axis=0)
+        if self.n_lev==0 :
+            x_lev=self.bound_vortex_pos[0,1]+(0.5*le_vel_x*(self.time[self.i_step]-self.time[self.i_step-1]))
+            y_lev=self.bound_vortex_pos[0,2]+(0.5*le_vel_y*(self.time[self.i_step]-self.time[self.i_step-1]))
+        else:
+            x_lev=self.bound_vortex_pos[0,1]+((1./3.)*(self.lev[self.n_lev-1,1]-self.bound_vortex_pos[0,1]))
+            y_lev=self.bound_vortex_pos[0,2]+((1./3.)*(self.lev[self.n_lev-1,2]-self.bound_vortex_pos[0,2]))
+        
+        xdist_shed_LEV_Bound=x_lev-self.bound_vortex_pos[:,1]
+        zdist_shed_LEV_Bound=y_lev-self.bound_vortex_pos[:,2]
+        dist_shed_lev=xdist_shed_LEV_Bound**2+zdist_shed_LEV_Bound**2
+        Ustar_lev=(-xdist_shed_LEV_Bound)/(2*np.pi*np.sqrt(self.v_core**4+dist_shed_lev**2))
+        Wstar_lev=(-zdist_shed_LEV_Bound)/(2*np.pi*np.sqrt(self.v_core**4+dist_shed_lev**2))
+        
+        x_dist_shed_TEV_Bound=x_tev-self.bound_vortex_pos[:,1]
+        z_dist_shed_TEV_Bound=y_tev-self.bound_vortex_pos[:,2]
+        dist_shed_tev=x_dist_shed_TEV_Bound**2+z_dist_shed_TEV_Bound**2
+        Ustar_tev=(-x_dist_shed_TEV_Bound)/(2*np.pi*np.sqrt(self.v_core**4+dist_shed_tev**2))
+        Wstar_tev=(-z_dist_shed_TEV_Bound)/(2*np.pi*np.sqrt(self.v_core**4+dist_shed_tev**2))
+        
+        
+        uind_res
+        ## Decomposition in matrix to compute downwash residual
+        a1=(-Ustar_lev*np.sin(self.alpha[self.i_step]))+(-Wstar_lev*np.cos(self.alpha[self.i_step]))
+        a2=(-Ustar_tev*np.sin(self.alpha[self.i_step]))+(-Wstar_tev*np.cos(self.alpha[self.i_step]))    
+        a3=(self.cam_slope*((Ustar_lev*np.cos(self.alpha[self.i_step]))+(-Wstar_lev*np.sin(self.alpha[self.i_step]))))
+        a4=(self.cam_slope*((Ustar_tev*np.cos(self.alpha[self.i_step]))+(-Wstar_tev*np.sin(self.alpha[self.i_step]))))
+        
+        A=np.array(([a1+a3],[a2+a4]))
+        
+        #downwash_res=[gamma_lev,gamma_tev]@A, A est une matrice 2,70, gamma de taille 1,2
+        
+        ao_res=A@w
+        a1_res=A*np.array(([np.cos(self.theta)],[np.cos(self.theta)]))@w
+        ao_res=(-1./(self.u_ref*np.pi))*ao_res
+        a1_res=(2./(self.u_ref*np.pi))*a1_res
+        bound_circ_res=self.u_ref*self.chord*np.pi*(aterm0+(aterm1/2.))
+        
+        
+        AA=np.array(([ao_res[0,0]],[a1_res[0,1]],[bound_circ_res[0,0]],[bound_circ_res[0,1]]))
+        
+        
+        RHS=np.array(([max(0,aterm0-lesp)],[-bound_circ-np.sum(self.tev[:,0])-np.sum(self.lev[:,0])]))
+        
+        Gamma=RHS@np.linalg.pinv(AA)
+
+        # downwash_res=(-uind_res*np.sin(self.alpha[self.i_step]))+\
+        #     (-wind_res*np.cos(self.alpha[self.i_step]))+\
+        #     (self.cam_slope*((uind_res*np.cos(self.alpha[self.i_step]))+(-wind_res*np.sin(self.alpha[self.i_step]))))
+            
+        
+        
+
+    def make_make_trapezoid_matrix(self, n_div,dtheta):
+    
+        # Poids pour méthode des trapèzes
+        w = np.ones(n_div + 1)
+        w[0] = w[-1] = 0.5
+        w *= dtheta
+    
+        return w
+        
 
     def wake_rollup(self,bound_int):
                 # Update Tev numbers
