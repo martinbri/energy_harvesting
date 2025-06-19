@@ -108,13 +108,11 @@ class ldvm:
         self.tev=np.empty((0, 3))
         self.lev=np.empty((0, 3))
 
-        self.W_trapezoid_n_div=self.make_trapezoid_integration_matrix(n_div=self.n_div).reshape(1,-1)
-        
+
         self.bound_circ_save=[]
 
 
         self.cam,self.cam_slope=self.calc_camber_slope()
-        
 
 
     def calc_camber_slope(self, plot=False):
@@ -167,6 +165,7 @@ class ldvm:
         return 0*cam, 0*cam_slope
 
     def calc_downwash_boundcirc(self,u,alpha,hdot,alphadot):
+        print('u, alpha, hdot, alphadot', u, alpha, hdot, alphadot)
 
         uind=np.zeros((1,self.n_div))
         wind=np.zeros((1,self.n_div))
@@ -199,35 +198,21 @@ class ldvm:
             (-wind*np.cos(alpha))+\
             (-alphadot*(self.x-self.pvt*self.chord))+\
             (self.cam_slope*((uind*np.cos(alpha))+(u*np.cos(alpha))+(hdot*np.sin(alpha))+(-wind*np.sin(alpha))))
-        # Compute the bound circulation with for loop
-        # aterm0=0.0
-        # aterm1=0.0
-        # for i_div in range (1,self.n_div):
-        #     aterm0=aterm0+(((downwash[0,i_div]+downwash[0,i_div-1])/2)*self.dtheta)
-        #     aterm1=aterm1+(((downwash[0,i_div]*np.cos(self.theta[i_div])+downwash[0,i_div-1]*np.cos(self.theta[i_div-1]))/2)*self.dtheta)
+
+        aterm0=0.0
+        aterm1=0.0
+        for i_div in range (1,self.n_div):
+            aterm0=aterm0+(((downwash[0,i_div]+downwash[0,i_div-1])/2)*self.dtheta)
+            aterm1=aterm1+(((downwash[0,i_div]*np.cos(self.theta[i_div])+downwash[0,i_div-1]*np.cos(self.theta[i_div-1]))/2)*self.dtheta)
         
 
-        # aterm0=(-1./(self.u_ref*np.pi))*aterm0
-        # aterm1=(2./(self.u_ref*np.pi))*aterm1
-        # bound_circ=self.u_ref*self.chord*np.pi*(aterm0+(aterm1/2.))
-
-        aterm0=self.W_trapezoid_n_div@(downwash.T)*self.dtheta      
-        aterm1=self.W_trapezoid_n_div@((downwash.T*np.cos(self.theta.reshape(-1,1))))*self.dtheta
         aterm0=(-1./(self.u_ref*np.pi))*aterm0
         aterm1=(2./(self.u_ref*np.pi))*aterm1
-        aterm0 = np.float64(np.squeeze(aterm0))
-        aterm1 = np.float64(np.squeeze(aterm1))
         bound_circ=self.u_ref*self.chord*np.pi*(aterm0+(aterm1/2.))
-        #print('aterm0,aterm1,bound_circ, ',aterm0,aterm1,bound_circ,type(aterm0),type(aterm1),type(bound_circ))
-        #input('press enter to continue')
 
         return aterm0, aterm1, downwash,bound_circ,uind,wind
 
-    def make_trapezoid_integration_matrix(self,n_div):
-        W=np.ones(n_div)
-        W[0]=0.5
-        W[-1]=0.5
-        return W
+
     def one_D_tev_shedding(self,t,t_minus_1,u,alpha,hdot,alphadot):
         # Perform tev shedding assuming LEV is not formed.
         #TEV shed at every time step
@@ -476,24 +461,17 @@ class ldvm:
         cnnc=2*np.pi*((3*self.chord*adot0/(4*self.u_ref))+(self.chord*adot1/(4*self.u_ref))+(self.chord*adot2/(8*self.u_ref)))
         cs=2*np.pi*self.aterm[0]*self.aterm[0]
         #The components of normal force and moment from induced velocities are calulcated in dimensional units and nondimensionalized later
-        #Computation with for loop
-        # non_l=0
-        # nonl_m=0
-        # #nonl=np.sum(((uind*np.cos(self.alpha[self.i_step]))-(wind*np.sin(self.alpha[self.i_step])))*bound_int[:,0])
-        # for i_div in range(1,self.n_div):
-        #     non_l=non_l+(((uind[0,i_div]*np.cos(alpha))-(wind[0,i_div]*np.sin(alpha)))*bound_int[i_div-1,0])
-        #     nonl_m=nonl_m+(((uind[0,i_div]*np.cos(alpha))-(wind[0,i_div]*np.sin(alpha)))*(self.x[i_div])*bound_int[i_div-1,0])
-        # non_l=non_l*(2/(self.u_ref*self.u_ref*self.chord))
-        # nonl_m=nonl_m*(2/(self.u_ref*self.u_ref*self.chord*self.chord))
-        # print("non_l", non_l, type(non_l))
-        # print("nonl_m", nonl_m,type(nonl_m))
-
-        non_l=np.sum(((uind[0,1:]*np.cos(alpha))-(wind[0,1:]*np.sin(alpha)))*bound_int[:,0])
-        nonl_m=np.sum(((uind[0,1:]*np.cos(alpha))-(wind[0,1:]*np.sin(alpha)))*(self.x[1:])*bound_int[:,0])
+        non_l=0
+        nonl_m=0
+        #nonl=np.sum(((uind*np.cos(self.alpha[self.i_step]))-(wind*np.sin(self.alpha[self.i_step])))*bound_int[:,0])
+        for i_div in range(1,self.n_div):
+            non_l=non_l+(((uind[0,i_div]*np.cos(alpha))-(wind[0,i_div]*np.sin(alpha)))*bound_int[i_div-1,0])
+            nonl_m=nonl_m+(((uind[0,i_div]*np.cos(alpha))-(wind[0,i_div]*np.sin(alpha)))*(self.x[i_div])*bound_int[i_div-1,0])
         non_l=non_l*(2/(self.u_ref*self.u_ref*self.chord))
         nonl_m=nonl_m*(2/(self.u_ref*self.u_ref*self.chord*self.chord))
 
-
+        print('cnc, cnnc, cs, non_l, nonl_m', cnc, cnnc, cs, non_l, nonl_m)
+        #input('dd')
 
         cn=cnc+cnnc+non_l
         cl=cn*np.cos(alpha)+cs*np.sin(alpha)
@@ -507,6 +485,7 @@ class ldvm:
 
     def step(self,t,t_minus_1, alpha, h, u, alphadot, hdot):
 
+        print('t', t, 't_minus_1', t_minus_1, 'alpha', alpha, 'h', h, 'u', u, 'alphadot', alphadot, 'hdot', hdot)
         
 
        
@@ -516,7 +495,9 @@ class ldvm:
         self.i_step+=1
         print("Step: {}, number of lev {}, number of tev {}, time {}".format(self.i_step, self.n_lev, self.n_tev,t))
         #Calculate bound vortex positions at this time step
+        print(self.dist_wind)
         self.dist_wind=self.dist_wind+(u*(t-t_minus_1))
+        print('dist_wind, ', self.dist_wind)
 
 
         self.bound_vortex_pos[:,1]=-((self.chord-self.pvt*self.chord)+((self.pvt*self.chord-self.x)*np.cos(alpha))+self.dist_wind) + (self.cam*np.sin(alpha))
@@ -525,20 +506,14 @@ class ldvm:
         downwash,aterm0,aterm1,bound_circ,uind,wind=self.one_D_tev_shedding(t,t_minus_1,u,alpha,hdot,alphadot)
 
         #Comupte the fourier terms
-        # Use the for loop version to compute the fourier terms
-        # self.aterm[2]=0.0
-        # self.aterm[3]=0.0
-        # for i_aterm in range(2,4):
-        #     for i_div in range(1, self.n_div):
-        #         self.aterm[i_aterm]= self.aterm[i_aterm]+((((downwash[0,i_div]*np.cos(i_aterm*self.theta[i_div]))+(downwash[0,i_div-1]*np.cos(i_aterm*self.theta[i_div-1])))/2)*self.dtheta)
+        self.aterm[2]=0.0
+        self.aterm[3]=0.0
+        for i_aterm in range(2,4):
+            for i_div in range(1, self.n_div):
+                self.aterm[i_aterm]= self.aterm[i_aterm]+((((downwash[0,i_div]*np.cos(i_aterm*self.theta[i_div]))+(downwash[0,i_div-1]*np.cos(i_aterm*self.theta[i_div-1])))/2)*self.dtheta)
 
 
-        #     self.aterm[i_aterm]=(2./(self.u_ref*np.pi))*self.aterm[i_aterm]
-        self.aterm[2]=self.W_trapezoid_n_div@((downwash.T*np.cos(2*self.theta.reshape(-1,1))))*self.dtheta
-        self.aterm[3]=self.W_trapezoid_n_div@((downwash.T*np.cos(3*self.theta.reshape(-1,1))))*self.dtheta
-        self.aterm[2:4]=(2./(self.u_ref*np.pi))*self.aterm[2:4]
-        
-
+            self.aterm[i_aterm]=(2./(self.u_ref*np.pi))*self.aterm[i_aterm]
         adot0=(aterm0-self.aterm_prev[0])/(t-t_minus_1)
         adot1=(aterm1-self.aterm_prev[1])/(t-t_minus_1)
         adot2=(self.aterm[2]-self.aterm_prev[2])/(t-t_minus_1)
@@ -568,48 +543,23 @@ class ldvm:
             self.tev[0,0]=0
 
         #Calculate fourier terms and bound vorticity
+
         self.aterm[0] = aterm0
         self.aterm[1] = aterm1
-        #self.aterm[2:] = 0.0
-        #Use for loop
-        #for i_aterm in range(2, self.n_aterm):
-            #self.aterm[i_aterm]=np.sum((((downwash[0,1:]*np.cos(i_aterm*self.theta[1:]))+(downwash[0,:-1]*np.cos(i_aterm*self.theta[:-1])))/2))*self.dtheta
+        self.aterm[2:] = 0.0
+        for i_aterm in range(2, self.n_aterm):
+            self.aterm[i_aterm]=np.sum((((downwash[0,1:]*np.cos(i_aterm*self.theta[1:]))+(downwash[0,:-1]*np.cos(i_aterm*self.theta[:-1])))/2))*self.dtheta
             # For loop version
             # for i_div in range(1, self.n_div):
 
             #     self.aterm[i_aterm]= self.aterm[i_aterm]+((((downwash[0,i_div]*np.cos(i_aterm*self.theta[i_div]))+(downwash[0,i_div-1]*np.cos(i_aterm*self.theta[i_div-1])))/2)*self.dtheta)
-        #    self.aterm[i_aterm]=(2./(self.u_ref*np.pi))*self.aterm[i_aterm]
-        iaterm=np.arange(2,self.n_aterm)
-        cos_matrix = np.cos(iaterm[None, :,]*np.tile(self.theta, (len(iaterm), 1)).T)
-        self.aterm[2:]=self.W_trapezoid_n_div@((downwash.T*cos_matrix))*self.dtheta
-        self.aterm[2:]=(2./(self.u_ref*np.pi))*self.aterm[2:]
-
-        
-        
+            self.aterm[i_aterm]=(2./(self.u_ref*np.pi))*self.aterm[i_aterm]
         self.aterm_prev=self.aterm.copy()
-        
-        
-        
-        
         #Calculate bound_vortex strengths
-        #gamma = np.zeros(self.n_div)
-        #gamma+=(self.aterm[0]*(1+np.cos(self.theta)))
-        #for i_aterm in range(1, self.n_aterm): #With for loop over A term
-        #    gamma+=(self.aterm[i_aterm]*np.sin(i_aterm*self.theta)*np.sin(self.theta))
-        iaterm=np.arange(1,self.n_aterm)
-        sin_matrix = np.sin(iaterm[:,None]*np.tile(self.theta, (len(iaterm), 1)))
-        tile_aterm=np.tile(self.aterm.reshape(-1,1),(1,self.n_div))
-        gamma=np.sum(tile_aterm[1:,:]*sin_matrix*np.tile(np.sin(self.theta), (len(iaterm), 1)),axis=0)
+        gamma = np.zeros(self.n_div)
         gamma+=(self.aterm[0]*(1+np.cos(self.theta)))
-
-
-        
-        
-        
-
-
-
-
+        for i_aterm in range(1, self.n_aterm):
+            gamma+=(self.aterm[i_aterm]*np.sin(i_aterm*self.theta)*np.sin(self.theta))
         bound_int=np.zeros((self.n_div-1,3))
         bound_int[:,0]=((gamma[1:]+gamma[:-1])/2)*self.dtheta
         bound_int[:,1]=(self.bound_vortex_pos[:-1,1]+self.bound_vortex_pos[1:,1])/2
@@ -625,6 +575,7 @@ class ldvm:
 
         self.bound_circ_save.append(bound_circ)
 
+        print(cl,cm)
 
         #Remove TEV and LEV if they are too far away
         del_dist=10*self.chord
@@ -760,6 +711,7 @@ class ldvm:
                     self.ref_data = self.ref_data[nan_rows[1]:,:]  # Update ref_data to the next segment
 
             bound_vortex_line.set_data(self.bound_vortex_pos[:, 1], self.bound_vortex_pos[:, 2])
+            print("frame",frame)
             if False:
                 ax.text(
                 0.95, 0.95, r"$t^*$ = {:.2f}".format(self.time[frame]),
@@ -801,9 +753,9 @@ if __name__ == "__main__":
     ldvm_instance = ldvm(config)
 
 
-    #ldvm_instance.load_motion()
+    ldvm_instance.load_motion()
     ldvm_instance.initialize_computation()
-    ldvm_instance.make_ldvm_animation(add_reference=True,colorscale=False,file_reference='../LDVM_v2_original.5/vor_flut.dat')
+    #ldvm_instance.make_ldvm_animation(add_reference=True,colorscale=False,file_reference='../LDVM_v2_original.5/vor_flut.dat')
 
     cl_history = []
     cd_history = []
@@ -825,6 +777,7 @@ if __name__ == "__main__":
     data=np.loadtxt('../LDVM_v2_original.5/force_pr_amp45_k0.2_le.dat',skiprows=1)
     gamma_lit=data[:,4]
     cl_lit=data[:,8]
+    print(data.shape)
     plt.figure()
     plt.plot(ldvm_instance.time[1:ldvm_instance.i_step+1],ldvm_instance.bound_circ_save,'r-',label='my LDVM',markersize=2)
 
