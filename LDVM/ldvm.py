@@ -30,32 +30,28 @@ class ldvm:
             self.u_ref=np.float64(config['u_ref'])
             self.chord=np.float64(config['chord'])
             self.pvt=np.float64(config['pvt'])
+            self.rho=np.float64(config['rho'])
             self.cm_pvt=np.float64(config['cm_pvt'])
             self.foil_name=config['foil_name']
             self.re_ref=np.float64(config['re_ref'])
             self.lesp_crit=np.float64(config['lesp_crit'])
-
             self.motion_file_name=config['motion_file_name']
-            self.force_file_name=config['force_file_name']
-            self.flow_file_name=config['flow_file_name']
-            self.n_pts_flow=config['n_pts_flow']
+
         else:
             self.u_ref=np.float64(1.0)
             self.chord=np.float64(1.0)
             self.pvt=np.float64(0.25)
+            self.rho=np.float64(1.225)
             self.cm_pvt=0.25
             self.foil_name='NACA0012'
             self.re_ref=float(1e6)
-            self.lesp_crit=0.5
-
-            self.motion_file_name='motion.csv'
-            self.force_file_name='force.csv'
-            self.flow_file_name='flow.csv'
-            self.n_pts_flow=100
+            self.lesp_crit=0.18
 
 
-
-
+        #Geometric parameters
+        self.dtheta=np.pi/(self.n_div-1)
+        self.theta = np.linspace(0, np.pi, self.n_div)
+        self.x=(self.chord/2.)*(1-np.cos(self.theta))
 
         ##Dimmensionalize parameters
         self.v_core=self.v_core*self.chord
@@ -63,44 +59,23 @@ class ldvm:
 
 
 
-    def load_motion(self):
+    def make_parameterized_motions(self,k,h0,alpha0,phi,ppp):
+        # Create a parameterized motion for the airfoil
+        
+        omega=2*self.u_ref*k/self.chord
+        period=2*np.pi/omega
+        self.time=np.linspace(0, period, ppp)
+        self.dt=self.time[1]-self.time[0]
+        self.alpha=alpha0*np.sin(omega*self.time)
+        self.h=h0*np.sin(omega*self.time-phi) 
+        
 
-        # Load motion data from file
-        try:
 
-            motion_data = pandas.read_csv(self.motion_file_name,delim_whitespace=True)#pandas.read_csv(self.motion_file_name, sep=',')
-        except pandas.errors.ParserError:
-            raise ValueError(f"The file '{self.motion_file_name}' is not a valid CSV file or is improperly formatted.")
-        except FileNotFoundError:
-            raise FileNotFoundError(f"The file '{self.motion_file_name}' does not exist.")
-        except Exception as e:
-            raise RuntimeError(f"An unexpected error occurred while reading the file: {e}")
 
-        # Check if the required columns are present
-        required_columns = ['time', 'alpha', 'h', 'u']
-        for col in required_columns:
-            if col not in motion_data.columns:
-                raise ValueError(f"The required column '{col}' is missing from the motion data file.")
-
-        self.time = motion_data['time'].values*self.chord/self.u_ref
-
-        self.alpha = motion_data['alpha'].values*np.pi/180
-        self.h = motion_data['h'].values*self.chord
-
-        self.u = motion_data['u'].values*self.u_ref
-
-        self.dtheta=np.pi/(self.n_div-1)
-        self.theta = np.linspace(0, np.pi, self.n_div)
-        self.x=(self.chord/2.)*(1-np.cos(self.theta))
-
-        ## ADD Camber computation stuff
-        self.alphadot=np.diff(self.alpha)/np.diff(self.time)
+        self.alphadot=omega*alpha0*np.cos(omega*self.time)
+        self.hdot=omega*h0*np.cos(omega*self.time-phi)
         self.hdot=np.diff(self.h)/np.diff(self.time)
-        self.alphadot=np.concatenate(([self.alphadot[0]], self.alphadot))
-        self.hdot=np.concatenate(([self.hdot[0]], self.hdot))
-
-
-
+       
     def initialize_computation(self):
         # Initialize computation parameters
         self.n_lev=0
@@ -115,11 +90,14 @@ class ldvm:
         self.tev=np.empty((0, 3))
         self.lev=np.empty((0, 3))
 
-
+        self.W_trapezoid_n_div=self.make_trapezoid_integration_matrix(n_div=self.n_div).reshape(1,-1)
+        
         self.bound_circ_save=[]
 
 
         self.cam,self.cam_slope=self.calc_camber_slope()
+        
+        
 
 
     def calc_camber_slope(self, plot=False):
@@ -171,7 +149,7 @@ class ldvm:
             plt.show()
         return cam, cam_slope
 
-    def calc_downwash_boundcirc(self):
+    def calc_downwash_boundcirc(self,u,alpha,hdot,alphadot):
 
         uind=np.zeros((1,self.n_div))
         wind=np.zeros((1,self.n_div))
@@ -198,27 +176,42 @@ class ldvm:
         uind=uind+Gamma@Ustar
         wind=wind-Gamma@Wstar
         # Compute the downwash
-        downwash=(-self.u[self.i_step]*np.sin(self.alpha[self.i_step]))+\
-            (-uind*np.sin(self.alpha[self.i_step]))+\
-            (self.hdot[self.i_step]*np.cos(self.alpha[self.i_step]))+\
-            (-wind*np.cos(self.alpha[self.i_step]))+\
-            (-self.alphadot[self.i_step]*(self.x-self.pvt*self.chord))+\
-            (self.cam_slope*((uind*np.cos(self.alpha[self.i_step]))+(self.u[self.i_step]*np.cos(self.alpha[self.i_step]))+(self.hdot[self.i_step]*np.sin(self.alpha[self.i_step]))+(-wind*np.sin(self.alpha[self.i_step]))))
-
+        downwash=(-u*np.sin(alpha))+\
+            (-uind*np.sin(alpha))+\
+            (hdot*np.cos(alpha))+\
+            (-wind*np.cos(alpha))+\
+            (-alphadot*(self.x-self.pvt*self.chord))+\
+            (self.cam_slope*((uind*np.cos(alpha))+(u*np.cos(alpha))+(hdot*np.sin(alpha))+(-wind*np.sin(alpha))))
+        #Compute the bound circulation with for loop
         aterm0=0.0
         aterm1=0.0
         for i_div in range (1,self.n_div):
             aterm0=aterm0+(((downwash[0,i_div]+downwash[0,i_div-1])/2)*self.dtheta)
             aterm1=aterm1+(((downwash[0,i_div]*np.cos(self.theta[i_div])+downwash[0,i_div-1]*np.cos(self.theta[i_div-1]))/2)*self.dtheta)
+        
 
         aterm0=(-1./(self.u_ref*np.pi))*aterm0
         aterm1=(2./(self.u_ref*np.pi))*aterm1
         bound_circ=self.u_ref*self.chord*np.pi*(aterm0+(aterm1/2.))
 
+        # aterm0=self.W_trapezoid_n_div@(downwash.T)*self.dtheta      
+        # aterm1=self.W_trapezoid_n_div@((downwash.T*np.cos(self.theta.reshape(-1,1))))*self.dtheta
+        # aterm0=(-1./(self.u_ref*np.pi))*aterm0
+        # aterm1=(2./(self.u_ref*np.pi))*aterm1
+        # aterm0 = np.float64(np.squeeze(aterm0))
+        # aterm1 = np.float64(np.squeeze(aterm1))
+        # bound_circ=self.u_ref*self.chord*np.pi*(aterm0+(aterm1/2.))
+        #print('aterm0,aterm1,bound_circ, ',aterm0,aterm1,bound_circ,type(aterm0),type(aterm1),type(bound_circ))
+        #input('press enter to continue')
+
         return aterm0, aterm1, downwash,bound_circ,uind,wind
 
-
-    def one_D_tev_shedding(self):
+    def make_trapezoid_integration_matrix(self,n_div):
+        W=np.ones(n_div)
+        W[0]=0.5
+        W[-1]=0.5
+        return W
+    def one_D_tev_shedding(self,t,t_minus_1,u,alpha,hdot,alphadot):
         # Perform tev shedding assuming LEV is not formed.
         #TEV shed at every time step
         tev_iter=np.zeros(101)
@@ -227,7 +220,7 @@ class ldvm:
         tev_iter[1]=-0.01
 
         if self.n_tev==0:
-            x_tev=self.bound_vortex_pos[self.n_div-1,1]+0.5*self.u[self.i_step]*(self.time[self.i_step]-self.time[self.i_step-1])
+            x_tev=self.bound_vortex_pos[self.n_div-1,1]+0.5*u*(t-t_minus_1)
             y_tev= self.bound_vortex_pos[self.n_div-1,2]
             self.tev=np.concatenate((self.tev, np.array([[0, x_tev, y_tev]])), axis=0)
         else:
@@ -239,7 +232,7 @@ class ldvm:
         while (iter<self.iter_max-1):
             iter=iter+1
             self.tev[self.n_tev,0]=tev_iter[iter]
-            aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc()
+            aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc(u,alpha,hdot,alphadot)
             kelv[iter]=self.kelv_enf
             if self.lev.size>0:
                 kelv[iter]+=np.sum(self.lev[:,0])
@@ -254,13 +247,13 @@ class ldvm:
             print('1D iteration failed, the residual is ', abs(kelv[iter]))
         return downwash,aterm0,aterm1,bound_circ,uind,wind
 
-    def two_D_lev_tev_shedding(self,le_vel_x,le_vel_y,lesp):
+    def two_D_lev_tev_shedding(self,le_vel_x,le_vel_y,lesp,t,t_minus_1,u,alpha,hdot,alphadot):
 
-        tev_iter=np.zeros(101)
-        lev_iter=np.zeros(101)
-        kelv=np.zeros(100)
+        tev_iter=np.zeros(102)
+        lev_iter=np.zeros(102)
+        kelv=np.zeros(101)
 
-        kutta=np.zeros(100)
+        kutta=np.zeros(101)
 
         #2D iteration if LESP_crit is exceeded
         if (abs(lesp)>self.lesp_crit):
@@ -279,11 +272,11 @@ class ldvm:
         lev_iter[1]=0.01
 
         if (self.levflag==0) :
-            x_lev=self.bound_vortex_pos[0,1]+(0.5*le_vel_x*(self.time[self.i_step]-self.time[self.i_step-1]))
-            y_lev=self.bound_vortex_pos[0,2]+(0.5*le_vel_y*(self.time[self.i_step]-self.time[self.i_step-1]))
+            x_lev=self.bound_vortex_pos[0,1]+(0.5*le_vel_x*(t-t_minus_1))
+            y_lev=self.bound_vortex_pos[0,2]+(0.5*le_vel_y*(t-t_minus_1))
         else:
-            x_lev=self.bound_vortex_pos[0,1]+((1./3.)*(self.lev[self.n_lev-1,1]-self.bound_vortex_pos[0,1]))
-            y_lev=self.bound_vortex_pos[0,2]+((1./3.)*(self.lev[self.n_lev-1,2]-self.bound_vortex_pos[0,2]))
+            x_lev=self.bound_vortex_pos[0,1]+((1./3.)*(t-t_minus_1))
+            y_lev=self.bound_vortex_pos[0,2]+((1./3.)*(t-t_minus_1))
         self.lev=np.concatenate((self.lev, np.array([[0, x_lev, y_lev]])), axis=0)
         self.levflag=1
 
@@ -299,7 +292,7 @@ class ldvm:
 
             self.tev[self.n_tev,0]=tev_iter[iter]
 
-            aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc()
+            aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc(u,alpha,hdot,alphadot)
 
 
             kelv_tev=self.kelv_enf
@@ -317,7 +310,7 @@ class ldvm:
             self.lev[self.n_lev,0]=lev_iter[iter]
             self.tev[self.n_tev,0]=tev_iter[iter-1]
 
-            aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc()
+            aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc(u,alpha,hdot,alphadot)
             kelv_lev=self.kelv_enf
 
             kelv_lev+=np.sum(self.lev[:,0])
@@ -335,7 +328,7 @@ class ldvm:
             self.lev[self.n_lev,0]=lev_iter[iter]
             self.tev[self.n_tev,0]=tev_iter[iter]
 
-            aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc()
+            aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc(u,alpha,hdot,alphadot)
             kelv[iter]=self.kelv_enf
             kelv[iter]+=np.sum(self.lev[:,0])
             kelv[iter]+=np.sum(self.tev[:,0])
@@ -361,7 +354,7 @@ class ldvm:
 
         return aterm0, aterm1, downwash, bound_circ,uind,wind
 
-    def wake_rollup(self,bound_int):
+    def wake_rollup(self,bound_int,dt):
                 # Update Tev numbers
         self.n_tev=self.n_tev+1
 
@@ -450,7 +443,6 @@ class ldvm:
         uind_lev=uind_lev+Gamma@Ustar
         wind_lev=wind_lev-Gamma@Wstar
 
-        dt=self.time[self.i_step]-self.time[self.i_step-1]
 
         ##Update TEV and LEV positions
         self.tev[:,1]=self.tev[:,1]+(uind_tev*dt)
@@ -460,42 +452,56 @@ class ldvm:
 
 
         # Cropping LEV and tEV arrays is not done here
-    def compute_forces(self, bound_int, uind, wind, adot0, adot1, adot2, adot3):
-                #Load coefficient calculation (nondimensional units)
+    def compute_forces(self, bound_int, uind, wind, adot0, adot1, adot2, adot3,u, alpha, hdot):
+        #Load coefficient calculation (nondimensional units)
 
-        cnc=(2*np.pi*((self.u[self.i_step]*np.cos(self.alpha[self.i_step])/self.u_ref)+(self.hdot[self.i_step]*np.sin(self.alpha[self.i_step])/self.u_ref))*(self.aterm[0]+self.aterm[1]/2))
-        cnnc=(2*np.pi*((3*self.chord*adot0/(4*self.u_ref))+(self.chord*adot1/(4*self.u_ref))+(self.chord*adot2/(8*self.u_ref))))
+        cnc=2*np.pi*((u*np.cos(alpha)/self.u_ref)+(hdot*np.sin(alpha)/self.u_ref))*(self.aterm[0]+self.aterm[1]/2)
+        cnnc=2*np.pi*((3*self.chord*adot0/(4*self.u_ref))+(self.chord*adot1/(4*self.u_ref))+(self.chord*adot2/(8*self.u_ref)))
         cs=2*np.pi*self.aterm[0]*self.aterm[0]
         #The components of normal force and moment from induced velocities are calulcated in dimensional units and nondimensionalized later
         non_l=0
         nonl_m=0
         #nonl=np.sum(((uind*np.cos(self.alpha[self.i_step]))-(wind*np.sin(self.alpha[self.i_step])))*bound_int[:,0])
         for i_div in range(1,self.n_div):
-            non_l=non_l+(((uind[0,i_div]*np.cos(self.alpha[self.i_step]))-(wind[0,i_div]*np.sin(self.alpha[self.i_step])))*bound_int[i_div-1,0])
-            nonl_m=nonl_m+(((uind[0,i_div]*np.cos(self.alpha[self.i_step]))-(wind[0,i_div]*np.sin(self.alpha[self.i_step])))*(self.x[i_div])*bound_int[i_div-1,0])
+            non_l=non_l+(((uind[0,i_div]*np.cos(alpha))-(wind[0,i_div]*np.sin(alpha)))*bound_int[i_div-1,0])
+            nonl_m=nonl_m+(((uind[0,i_div]*np.cos(alpha))-(wind[0,i_div]*np.sin(alpha)))*(self.x[i_div])*bound_int[i_div-1,0])
         non_l=non_l*(2/(self.u_ref*self.u_ref*self.chord))
         nonl_m=nonl_m*(2/(self.u_ref*self.u_ref*self.chord*self.chord))
+
+        print('cnc, cnnc, cs, non_l, nonl_m', cnc, cnnc, cs, non_l, nonl_m)
+        #input('dd')
+
         cn=cnc+cnnc+non_l
-        cl=cn*np.cos(self.alpha[self.i_step])+cs*np.sin(self.alpha[self.i_step])
-        cd=cn*np.sin(self.alpha[self.i_step])-cs*np.cos(self.alpha[self.i_step])
-        cm=cn*self.cm_pvt-(2*np.pi*(((self.u[self.i_step]*np.cos(self.alpha[self.i_step])/self.u_ref)+(self.hdot[self.i_step]*np.sin(self.alpha[self.i_step])/self.u_ref))*((self.aterm[0]/4)+(self.aterm[1]/4)-(self.aterm[2]/8))+(self.chord/self.u_ref)*((7*adot0/16)+(3*adot1/16)+(adot2/16)-(adot3/64))))-nonl_m
+        cl=cn*np.cos(alpha)+cs*np.sin(alpha)
+        cd=cn*np.sin(alpha)-cs*np.cos(alpha)
+        cm=cn*self.cm_pvt-(2*np.pi*(((u*np.cos(alpha)/self.u_ref)+(hdot*np.sin(alpha)/self.u_ref))*((self.aterm[0]/4)+(self.aterm[1]/4)-(self.aterm[2]/8))+(self.chord/self.u_ref)*((7*adot0/16)+(3*adot1/16)+(adot2/16)-(adot3/64))))-nonl_m
+
+        
 
         return cl, cd, cm, cn
 
 
-    def step(self):
+    def step(self,t,t_minus_1, alpha, h, u, alphadot, hdot):
+
+        print('t', t, 't_minus_1', t_minus_1, 'alpha', alpha, 'h', h, 'u', u, 'alphadot', alphadot, 'hdot', hdot)
+        
+
+       
+        
 
         # Perform a single step of the computation
         self.i_step+=1
-        print("Step: {}, number of lev {}, number of tev {}, time {},tmax ={}".format(self.i_step, self.n_lev, self.n_tev,self.time[self.i_step],self.time[-1]))
+        print("Step: {}, number of lev {}, number of tev {}, time {}".format(self.i_step, self.n_lev, self.n_tev,t))
         #Calculate bound vortex positions at this time step
-        self.dist_wind=self.dist_wind+(self.u[self.i_step-1]*(self.time[self.i_step]-self.
-        time[self.i_step-1]))
+        print(self.dist_wind)
+        self.dist_wind=self.dist_wind+(u*(t-t_minus_1))
+        print('dist_wind, ', self.dist_wind)
 
-        self.bound_vortex_pos[:,1]=-((self.chord-self.pvt*self.chord)+((self.pvt*self.chord-self.x)*np.cos(self.alpha[self.i_step]))+self.dist_wind) + (self.cam*np.sin(self.alpha[self.i_step]))
-        self.bound_vortex_pos[:,2]=self.h[self.i_step]+((self.pvt*self.chord-self.x)*np.sin(self.alpha[self.i_step]))+(self.cam*np.cos(self.alpha[self.i_step]))
 
-        downwash,aterm0,aterm1,bound_circ,uind,wind=self.one_D_tev_shedding()
+        self.bound_vortex_pos[:,1]=-((self.chord-self.pvt*self.chord)+((self.pvt*self.chord-self.x)*np.cos(alpha))+self.dist_wind) + (self.cam*np.sin(alpha))
+        self.bound_vortex_pos[:,2]=h+((self.pvt*self.chord-self.x)*np.sin(alpha))+(self.cam*np.cos(alpha))
+
+        downwash,aterm0,aterm1,bound_circ,uind,wind=self.one_D_tev_shedding(t,t_minus_1,u,alpha,hdot,alphadot)
 
         #Comupte the fourier terms
         self.aterm[2]=0.0
@@ -506,15 +512,15 @@ class ldvm:
 
 
             self.aterm[i_aterm]=(2./(self.u_ref*np.pi))*self.aterm[i_aterm]
-        adot0=(aterm0-self.aterm_prev[0])/(self.time[self.i_step]-self.time[self.i_step-1])
-        adot1=(aterm1-self.aterm_prev[1])/(self.time[self.i_step]-self.time[self.i_step-1])
-        adot2=(self.aterm[2]-self.aterm_prev[2])/(self.time[self.i_step]-self.time[self.i_step-1])
-        adot3=(self.aterm[3]-self.aterm_prev[3])/(self.time[self.i_step]-self.time[self.i_step-1])
+        adot0=(aterm0-self.aterm_prev[0])/(t-t_minus_1)
+        adot1=(aterm1-self.aterm_prev[1])/(t-t_minus_1)
+        adot2=(self.aterm[2]-self.aterm_prev[2])/(t-t_minus_1)
+        adot3=(self.aterm[3]-self.aterm_prev[3])/(t-t_minus_1)
 
 
 
-        le_vel_x=(self.u[self.i_step])-(self.alphadot[self.i_step]*np.sin(self.alpha[self.i_step])*self.pvt*self.chord)+uind[0,0]
-        le_vel_y=-(self.alphadot[self.i_step]*np.cos(self.alpha[self.i_step])*self.pvt*self.chord)-(self.hdot[self.i_step])+wind[0,0]
+        le_vel_x=(u)-(alphadot*np.sin(alpha)*self.pvt*self.chord)+uind[0,0]
+        le_vel_y=-(alphadot*np.cos(alpha)*self.pvt*self.chord)-(hdot)+wind[0,0]
         vmag=np.sqrt(le_vel_x*le_vel_x+le_vel_y*le_vel_y)
         re_le=self.re_ref*vmag/self.u_ref
         lesp=aterm0
@@ -522,7 +528,7 @@ class ldvm:
         #Shed the TEV and LEV if LESP crit is exceeded
         if (abs(lesp)>self.lesp_crit):
             print("A LEV is formed")
-            aterm0, aterm1, downwash, bound_circ,uind,wind=self.two_D_lev_tev_shedding(le_vel_x,le_vel_y,lesp)
+            aterm0, aterm1, downwash, bound_circ,uind,wind=self.two_D_lev_tev_shedding(le_vel_x,le_vel_y,lesp, t, t_minus_1, u, alpha, hdot, alphadot)
 
         else:
             self.levflag=0
@@ -558,18 +564,30 @@ class ldvm:
         bound_int[:,2]=(self.bound_vortex_pos[:-1,2]+self.bound_vortex_pos[1:,2])/2
         # Wake Rollup
 
-        self.wake_rollup(bound_int)
+        self.wake_rollup(bound_int,t-t_minus_1)
 
 
 
-        cl, cd, cm,cn= self.compute_forces(bound_int, uind, wind, adot0, adot1, adot2, adot3)
+        cl, cd, cm,cn= self.compute_forces(bound_int, uind, wind, adot0, adot1, adot2, adot3, u, alpha, hdot)
 
 
         self.bound_circ_save.append(bound_circ)
 
-        return cl, cd, cm, lesp, re_le,cn
+        print(cl,cm)
 
-    def make_ldvm_animation(self, add_reference=False,file_reference='../LDVM_v2_original.5/flow_pr_amp45_k0.2_le.dat',colorscale=False):
+        #Remove TEV and LEV if they are too far away
+        del_dist=10*self.chord
+
+
+        if (self.tev[0,1]-self.bound_vortex_pos[-1,1])>del_dist:
+                self.kelv_enf=self.kelv_enf+self.tev[0,0]
+                self.tev=np.delete(self.tev, 0, axis=0)
+                self.n_tev=self.n_tev-1
+
+
+        return cl, cd, cm
+
+    def make_ldvm_animation(self, add_reference=False,n_frames=1000,file_reference='../LDVM_v2_original.5/flow_pr_amp45_k0.2_le.dat',colorscale=False):
         # Create an animation of the LDVM simulation
 
         if add_reference:
@@ -586,8 +604,8 @@ class ldvm:
                 fig, axs = plt.subplots(2,1,figsize=(10, 8),tight_layout=True)
                 ax = axs[0]
                 ax2 = axs[1]
-            ax2.set_xlim(-8, 1)
-            ax2.set_ylim(-2, 2)
+            ax2.set_xlim(-6, 1/2)
+            ax2.set_ylim(-1/8,1/8 )
             ax2.set_yticks([])
             ax2.set_xticks([])
             self.ref_data = np.loadtxt(file_reference)
@@ -654,7 +672,7 @@ class ldvm:
 
         def update(frame):
 
-            self.step()  # Perform a step to update the state
+            #self.step()  # Perform a step to update the state
             if colorscale:
                 lev_line.set_offsets(np.c_[self.lev[:, 1], self.lev[:, 2]])
                 if self.lev.shape[0] > 0:
@@ -683,14 +701,15 @@ class ldvm:
                 if add_reference:
                     nan_rows = np.where(np.isnan(self.ref_data).all(axis=1))[0]
                     dat=self.ref_data[nan_rows[0]+1:nan_rows[1],:]
-                    lev_line_ref.set_data(dat[:self.n_lev, 1], dat[:self.n_lev, 2])
-                    tev_line_ref.set_data(dat[self.n_lev:self.n_lev+self.n_tev, 1], dat[self.n_lev:self.n_lev+self.n_tev, 2])
+                    print('dat',dat.shape)
+                    
+                    #lev_line_ref.set_data(dat[:self.n_lev, 1], dat[:self.n_lev, 2])
+                    tev_line_ref.set_data(dat[:-69, 1], dat[:-69, 2])
                     bound_vortex_line_ref.set_data(dat[-69:, 1], dat[-69:, 2])
                     self.ref_data = self.ref_data[nan_rows[1]:,:]  # Update ref_data to the next segment
 
             bound_vortex_line.set_data(self.bound_vortex_pos[:, 1], self.bound_vortex_pos[:, 2])
-            print("frame",frame)
-            if True:
+            if False:
                 ax.text(
                 0.95, 0.95, r"$t^*$ = {:.2f}".format(self.time[frame]),
                 horizontalalignment='right',
@@ -699,12 +718,47 @@ class ldvm:
                 bbox=dict(facecolor='white', edgecolor='none', boxstyle='round,pad=0.2'))
             return lev_line, tev_line, bound_vortex_line
 
-        ani = FuncAnimation(fig, update, frames=499, init_func=init, blit=True)
+        ani = FuncAnimation(fig, update, frames=n_frames, init_func=init, blit=True)
         ani.save('ldvm_animation.mp4', writer='ffmpeg', fps=20)
         #plt.show()
 
+    def load_motion(self):
 
+        # Load motion data from file
+        try:
 
+            motion_data = pandas.read_csv(self.motion_file_name,delim_whitespace=True)#pandas.read_csv(self.motion_file_name, sep=',')
+        except pandas.errors.ParserError:
+            raise ValueError(f"The file '{self.motion_file_name}' is not a valid CSV file or is improperly formatted.")
+        except FileNotFoundError:
+            raise FileNotFoundError(f"The file '{self.motion_file_name}' does not exist.")
+        except Exception as e:
+            raise RuntimeError(f"An unexpected error occurred while reading the file: {e}")
+
+        # Check if the required columns are present
+        required_columns = ['time', 'alpha', 'h', 'u']
+        for col in required_columns:
+            if col not in motion_data.columns:
+                raise ValueError(f"The required column '{col}' is missing from the motion data file.")
+
+        self.time = motion_data['time'].values*self.chord/self.u_ref
+
+        self.alpha = motion_data['alpha'].values*np.pi/180
+        self.h = motion_data['h'].values*self.chord
+
+        self.u = motion_data['u'].values*self.u_ref
+
+        self.dtheta=np.pi/(self.n_div-1)
+        self.theta = np.linspace(0, np.pi, self.n_div)
+        self.x=(self.chord/2.)*(1-np.cos(self.theta))
+
+        ## ADD Camber computation stuff
+        self.alphadot=np.diff(self.alpha)/np.diff(self.time)
+        self.hdot=np.diff(self.h)/np.diff(self.time)
+        self.alphadot=np.concatenate(([self.alphadot[0]], self.alphadot))
+        self.hdot=np.concatenate(([self.hdot[0]], self.hdot))
+
+        self.dt = self.time[1] - self.time[0]
 
 
 
@@ -714,74 +768,104 @@ if __name__ == "__main__":
     t_start = time.time()
     # Example usage
     config = {
-        'u_ref': 1.0,
+        'u_ref': 1,
         'chord': 1.0,
-        'pvt': 0.0,
-        'cm_pvt': 0.0,
+        'pvt': 0.25,
+        'rho': 1.225,
+        'cm_pvt': 0.25,
         'foil_name': 'sd7012.dat',
         're_ref': 30000,
         'lesp_crit': 0.18,
-        'motion_file_name': 'motion_pr_amp45_k0.2.dat',
-        'force_file_name': 'force_pr_amp45_k0.2_le.csv',
-        'flow_file_name': 'flow.csv',
-        'n_pts_flow': 100
+        'motion_file_name':'motion_pr_amp45_k0.2.dat'
     }
 
     ldvm_instance = ldvm(config)
-
-
-    ldvm_instance.load_motion()
+    ppp=100
+    k=0.5
+    alpha0=50*np.pi/180
+    h0=0.1
+    phi=0.0
+    #ldvm_instance.load_motion()
     ldvm_instance.initialize_computation()
-    #ldvm_instance.make_ldvm_animation(add_reference=True,colorscale=True)
-
+    
+    #ldvm_instance.make_parameterized_motions(k=k,alpha0=alpha0,h0=h0,phi=phi,ppp=ppp)
+    ldvm_instance.load_motion()
     cl_history = []
     cd_history = []
     cm_history = []
+    
+    t_minus_1=-ldvm_instance.dt
 
-    for i in range(499):
+    for (t,alpha,h,alpha_dot,h_dot) in zip(ldvm_instance.time, ldvm_instance.alpha, ldvm_instance.h, ldvm_instance.alphadot, ldvm_instance.hdot):
         #print(ldvm_instance.alpha[:i]*180/np.pi)
-        cl, cd, cm, lesp, re_le,cn=ldvm_instance.step()
+        cl, cd, cm,=ldvm_instance.step(t=t,t_minus_1=t_minus_1,alpha=alpha,h=h,u=ldvm_instance.u_ref,alphadot=alpha_dot,hdot=h_dot)
         cl_history.append(cl)
         cd_history.append(cd)
         cm_history.append(cm)  # Assuming cm is not calculated in this example
+        t_minus_1=t
 
 
-
+    data_save=np.array([ldvm_instance.time*ldvm_instance.chord/ldvm_instance.u_ref, ldvm_instance.alpha*180/np.pi, ldvm_instance.h/ldvm_instance.chord, np.ones(500)]).T
+    print(data_save)
+    
+    np.savetxt('motion_data_alpha_0_{}_h0_{}_k_{}_phi_{}.dat'.format(alpha0*180/np.pi,h0,k,phi), data_save)
 
     #ldvm_instance.make_ldvm_animation(add_reference=True)
     t_end = time.time()
     print('Total time for {} steps:'.format(ldvm_instance.i_step), t_end - t_start, 'seconds')
-    data=np.loadtxt('../LDVM_v2_original.5/force_pr_amp45_k0.2_le.dat',skiprows=1)
-    gamma_lit=data[:,4]
+    
+    data= np.loadtxt('force_data_alpha_0_{}_h0_{}_k_{}_phi_{}.dat'.format(alpha0*180/np.pi,h0,k,phi))
+    
+    fig, ax = plt.subplots(tight_layout=True)
+    
+    ax.plot(ldvm_instance.time,ldvm_instance.alpha*180/np.pi,'r-',label='my LDVM',markersize=2)
+    ax.set_xlabel('time')
+    ax.set_ylabel('angle of attack (deg)')
+    ax2 = ax.twinx()
+    ax2.plot(ldvm_instance.time, ldvm_instance.h, 'b--', label='Height', markersize=2)
+    ax2.set_ylabel('Height (m)')
+    fig.savefig('angle_height.png', dpi=300)
+    
+    
     cl_lit=data[:,8]
     plt.figure()
-    plt.plot(ldvm_instance.time[1:ldvm_instance.i_step+1],ldvm_instance.bound_circ_save,'r-',label='my LDVM',markersize=2)
+    plt.plot(ldvm_instance.time[:ldvm_instance.i_step+1],ldvm_instance.bound_circ_save,'r-',label='my LDVM',markersize=2)
 
-    plt.plot(data[:,0],gamma_lit,'b-',label='literature',markersize=2)
+    #plt.plot(data[:,0],gamma_lit,'b-',label='literature',markersize=2)
     plt.xlabel('time')
     plt.ylabel('bound circulation')
+    plt.plot(data[:,0],data[:,4],'b--',label='literature',markersize=2)
     plt.legend()
+    plt.savefig('bound_circ.png', dpi=300)
     plt.figure()
 
-    plt.plot(ldvm_instance.time[1:ldvm_instance.i_step+1],cl_history,'r-',label='my LDVM',markersize=2)
-    plt.plot(data[:,0],cl_lit,'b-',label='literature',markersize=2)
+    plt.plot(ldvm_instance.time[:ldvm_instance.i_step+1],cl_history,'r-',label='my LDVM',markersize=2)
+    plt.plot(data[:,0],cl_lit,'b--',label='literature',markersize=2)
     plt.xlabel('time')
     plt.ylabel('lift')
     plt.legend()
+    plt.savefig('lift.png', dpi=300)
+    
 
     plt.figure()
-    plt.plot(ldvm_instance.time[1:ldvm_instance.i_step+1],cd_history,'r-',label='my LDVM',markersize=2)
-    plt.plot(data[:,0],data[:,9],'b-',label='literature',markersize=2)
+    plt.plot(ldvm_instance.time[:ldvm_instance.i_step+1],cd_history,'r-',label='my LDVM',markersize=2)
+    plt.plot(data[:,0],data[:,9],'b--',label='literature',markersize=2)
     plt.xlabel('time')
     plt.ylabel('drag')
     plt.legend()
+    plt.savefig('drag.png', dpi=300)
     plt.figure()
-    plt.plot(ldvm_instance.time[1:ldvm_instance.i_step+1],cm_history,'r-',label='my LDVM',markersize=2)
-    plt.plot(data[:,0],data[:,10],'b-',label='literature',markersize=2)
+    plt.plot(ldvm_instance.time[:ldvm_instance.i_step+1],cm_history,'r-',label='my LDVM',markersize=2)
+    plt.plot(data[:,0],data[:,10],'b--',label='literature',markersize=2)
     plt.xlabel('time')
     plt.ylabel('moment')
+    
     plt.legend()
+    plt.savefig('moment.png', dpi=300)
+    
     plt.show()
+
+
 
 
 
