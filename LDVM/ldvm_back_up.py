@@ -21,7 +21,7 @@ class ldvm:
 
         self.eps=1e-6 #Tolerance or iteration
         self.v_core=0.02 #Non dimensional core radius of point vortices
-        self.n_div=70 # No. of divisions along chord on airfoil
+         # No. of divisions along chord on airfoil
         self.n_aterm=45 #Number of fourier terms used to compute vorticity at a location on chord
         self.del_dist=5.00
         self.iter_max=100
@@ -30,6 +30,7 @@ class ldvm:
             self.u_ref=np.float64(config['u_ref'])
             self.chord=np.float64(config['chord'])
             self.pvt=np.float64(config['pvt'])
+            self.n_div=np.int64(config['n_div'])
             self.cm_pvt=np.float64(config['cm_pvt'])
             self.foil_name=config['foil_name']
             self.re_ref=np.float64(config['re_ref'])
@@ -122,7 +123,7 @@ class ldvm:
         self.cam,self.cam_slope=self.calc_camber_slope()
 
 
-    def calc_camber_slope(self, plot=False):
+    def calc_camber_slope(self, plot=True):
         from scipy.interpolate import CubicSpline
         #Constructing camber slope from airfoil file
         if self.foil_name== 'flate_plate':
@@ -132,6 +133,8 @@ class ldvm:
         xcoord = data_profile[:, 0]
         ycoord = data_profile[:, 1]
         n_coord = len(xcoord)
+        
+
 
         xcoord_sum = np.zeros(n_coord)
         
@@ -168,7 +171,10 @@ class ldvm:
             plt.plot(xreq[:self.n_div], y_coord_ans[:self.n_div][::-1], 'bo', label='interpolated',markersize=2)
             plt.plot(self.x, cam, 'g-', label='camber')
             plt.legend()
+            plt.savefig('camber_slope.png', dpi=300)
             plt.show()
+        print("Camber slope computed", cam_slope,cam)
+        
         return cam, cam_slope
 
     def calc_downwash_boundcirc(self):
@@ -501,10 +507,10 @@ class ldvm:
         
         
         self.u=self.u_ref*np.ones_like(self.time)
-        data_save=np.array([ldvm_instance.time*ldvm_instance.chord/ldvm_instance.u_ref, ldvm_instance.alpha*180/np.pi, ldvm_instance.h/ldvm_instance.chord, np.ones(ppp)]).T
+        # data_save=np.array([self.time*ldvm_instance.chord/self.u_ref, self.alpha*180/np.pi, self.h/ldvm_instance.chord, np.ones(ppp)]).T
     
-        np.savetxt('motion_data_alpha_0_{}_h0_{}_k_{}_phi_{}.dat'.format(alpha0*180/np.pi,h0,k,phi), data_save)
-        print("omega = {}, period = {}, dt = {}".format(omega, period, self.dt))
+        # np.savetxt('motion_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp), data_save)
+        # print("omega = {}, period = {}, dt = {}".format(omega, period, self.dt))
        
     def step(self):
 
@@ -753,21 +759,35 @@ if __name__ == "__main__":
         'chord': 1.0,
         'pvt': 0.25,
         'cm_pvt': 0.25,
-        'foil_name': 'sd7012.dat',
-        're_ref': 30000,
-        'lesp_crit':0.18,
+        'foil_name': 'naca0015_airfoil.dat',
+        're_ref': 1100,
+        'lesp_crit':0.19,
         'motion_file_name': 'motion_pr_amp45_k0.2.dat',
         'force_file_name': 'force_pr_amp45_k0.2_le.csv',
         'flow_file_name': 'flow.csv',
-        'n_pts_flow': 100
+        'n_pts_flow': 100,
+        'rho':1.225,
+        'nu': 1.566e-5,
+        'n_div': 140,
     }
 
     ldvm_instance = ldvm(config)
-    ppp=5000
+    
+    
+
+    
+    
     k=0.05
     alpha0=50*np.pi/180
     h0=0.1
     phi=0.0
+    omega=2*ldvm_instance.u_ref*k/ldvm_instance.chord
+    period=2*np.pi/omega
+    D=period*ldvm_instance.u_ref
+    
+    d_wake=1./ldvm_instance.n_div*ldvm_instance.chord
+
+    ppp=int(D/d_wake)
     #ldvm_instance.load_motion()
     
     ldvm_instance.make_parameterized_motions(k=k,alpha0=alpha0,h0=h0,phi=phi,ppp=ppp)
@@ -791,14 +811,16 @@ if __name__ == "__main__":
         cm_history.append(cm)  # Assuming cm is not calculated in this example
 
 
-
-    data_save=np.array([ldvm_instance.time*ldvm_instance.chord/ldvm_instance.u_ref, ldvm_instance.alpha*180/np.pi, ldvm_instance.h/ldvm_instance.chord, np.ones(ppp)]).T
-    
-    np.savetxt('motion_data_alpha_0_{}_h0_{}_k_{}_phi_{}.dat'.format(alpha0*180/np.pi,h0,k,phi), data_save)
     #ldvm_instance.make_ldvm_animation(add_reference=True)
     t_end = time.time()
     print('Total time for {} steps:'.format(ldvm_instance.i_step), t_end - t_start, 'seconds')
-    data=np.loadtxt('force_data_alpha_0_{}_h0_{}_k_{}_phi_{}.dat'.format(alpha0*180/np.pi,h0,k,phi),skiprows=1)
+    
+    data_loads=np.column_stack((ldvm_instance.time[2:ldvm_instance.i_step+1],ldvm_instance.bound_circ_save[1:],cl_history[1:],cd_history[1:], cm_history[1:]))
+    np.savetxt('data_base/force_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp), data_loads, header='time bound_circ lift drag moment', fmt='%f %f %f %f %f')
+
+    data=np.loadtxt('../LDVM_v2_original.5/force_data_alpha_0_{}_h0_{}_k_{:.1f}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp),skiprows=1)
+
+    print(data_loads.shape)
     gamma_lit=data[:,4]
     cl_lit=data[:,8]
     fig, ax = plt.subplots(tight_layout=True)
