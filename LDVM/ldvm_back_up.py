@@ -23,7 +23,7 @@ class ldvm:
         self.v_core=0.02 #Non dimensional core radius of point vortices
         self.n_div=70 # No. of divisions along chord on airfoil
         self.n_aterm=45 #Number of fourier terms used to compute vorticity at a location on chord
-        self.del_dist=10.00
+        self.del_dist=5.00
         self.iter_max=100
         self.kelv_enf=0.0
         if config is not None:
@@ -501,6 +501,10 @@ class ldvm:
         
         
         self.u=self.u_ref*np.ones_like(self.time)
+        data_save=np.array([ldvm_instance.time*ldvm_instance.chord/ldvm_instance.u_ref, ldvm_instance.alpha*180/np.pi, ldvm_instance.h/ldvm_instance.chord, np.ones(ppp)]).T
+    
+        np.savetxt('motion_data_alpha_0_{}_h0_{}_k_{}_phi_{}.dat'.format(alpha0*180/np.pi,h0,k,phi), data_save)
+        print("omega = {}, period = {}, dt = {}".format(omega, period, self.dt))
        
     def step(self):
 
@@ -585,7 +589,19 @@ class ldvm:
 
 
         self.bound_circ_save.append(bound_circ)
+        #Remove TEV and LEV if they are too far away
+        del_dist=10*self.chord
 
+
+        if (self.tev[0,1]-self.bound_vortex_pos[-1,1])>del_dist:
+                self.kelv_enf=self.kelv_enf+self.tev[0,0]
+                self.tev=np.delete(self.tev, 0, axis=0)
+                self.n_tev=self.n_tev-1
+        # Remove LEV if they are too far away
+        if self.n_lev > 0 and (self.lev[0, 1] - self.bound_vortex_pos[-1, 1]) > self.del_dist:
+            self.kelv_enf += self.lev[0, 0]
+            self.lev = np.delete(self.lev, 0, axis=0)
+            self.n_lev -= 1
         return cl, cd, cm, lesp, re_le,cn
 
     def make_ldvm_animation(self, add_reference=False,file_reference='../LDVM_v2_original.5/flow_pr_amp45_k0.2_le.dat',colorscale=False):
@@ -739,7 +755,7 @@ if __name__ == "__main__":
         'cm_pvt': 0.25,
         'foil_name': 'sd7012.dat',
         're_ref': 30000,
-        'lesp_crit': 0.18,
+        'lesp_crit':0.18,
         'motion_file_name': 'motion_pr_amp45_k0.2.dat',
         'force_file_name': 'force_pr_amp45_k0.2_le.csv',
         'flow_file_name': 'flow.csv',
@@ -747,14 +763,15 @@ if __name__ == "__main__":
     }
 
     ldvm_instance = ldvm(config)
-    ppp=1000
-    k=0.5
+    ppp=5000
+    k=0.05
     alpha0=50*np.pi/180
     h0=0.1
     phi=0.0
     #ldvm_instance.load_motion()
     
     ldvm_instance.make_parameterized_motions(k=k,alpha0=alpha0,h0=h0,phi=phi,ppp=ppp)
+    
 
     #ldvm_instance.load_motion()
     ldvm_instance.initialize_computation()
@@ -781,7 +798,7 @@ if __name__ == "__main__":
     #ldvm_instance.make_ldvm_animation(add_reference=True)
     t_end = time.time()
     print('Total time for {} steps:'.format(ldvm_instance.i_step), t_end - t_start, 'seconds')
-    data=np.loadtxt('force_data_alpha_0_50.0_h0_0.1_k_0.5_phi_0.0.dat',skiprows=1)
+    data=np.loadtxt('force_data_alpha_0_{}_h0_{}_k_{}_phi_{}.dat'.format(alpha0*180/np.pi,h0,k,phi),skiprows=1)
     gamma_lit=data[:,4]
     cl_lit=data[:,8]
     fig, ax = plt.subplots(tight_layout=True)

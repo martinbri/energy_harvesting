@@ -45,7 +45,7 @@ class ldvm:
             self.cm_pvt=0.25
             self.foil_name='NACA0012'
             self.re_ref=float(1e6)
-            self.lesp_crit=0.18
+            self.lesp_crit=50.0
 
 
         #Geometric parameters
@@ -582,6 +582,8 @@ class ldvm:
                 self.kelv_enf=self.kelv_enf+self.tev[0,0]
                 self.tev=np.delete(self.tev, 0, axis=0)
                 self.n_tev=self.n_tev-1
+                
+        
 
 
         return cl, cd, cm
