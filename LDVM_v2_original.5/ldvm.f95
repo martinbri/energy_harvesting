@@ -67,8 +67,8 @@ integer, parameter :: expect_vort=3000
 integer :: n_div, n_step, n_aterm, n_coord, n_lev, n_tev, n_calib
 integer :: i_div, i_step, i_coord, io1, iter_max, iter, i_aterm, i_calib
 integer :: i_lev, i_tev, j_lev, j_tev, levflag
-character(len=50) :: foil_name, motion_filename, flow_filename, force_filename, input_filename, cp_filename
-character(len=50) :: lesp_calib
+character(len=200) :: foil_name, motion_filename, flow_filename, force_filename, input_filename, cp_filename
+character(len=200) :: lesp_calib
 double precision, dimension(100000) :: t, alpha, h, u, alphadot, hdot
 double precision, dimension(300) :: x, theta, cam, cam_slope, gamma
 double precision :: dtheta, xreq
@@ -101,9 +101,9 @@ pi=acos(-1.)
 eps=10e-6     !Tolerance or iteration
 iter_max=100  !Max. iterations
 v_core=0.02   !Non-dimensional core radius of point vortices 
-n_div=70     !No. of divisions along chord on airfoil
+n_div=140     !No. of divisions along chord on airfoil
 n_aterm=45    !Number of fourier terms used to compute vorticity at a location on chord  
-del_dist=10
+del_dist=5
 
 version=2.5
 write(*,1001)version
@@ -137,6 +137,7 @@ read(3,*)lesp_crit
 read(3,*)motion_filename
 read(3,*)force_filename
 read(3,*)flow_filename, n_pts_flow
+
 
 !Open output files
 if (flow_filename .ne. 'nil') then
@@ -176,7 +177,11 @@ end do
 !Determine camberslope on airfoil from airfoil input file
 cam_slope(1:n_div)=0
 cam(1:n_div)=0
+
+
 call calc_camberslope
+
+
 
 !Calculating derivatives (Backward differentiation)
 do i_step=2,n_step
@@ -185,6 +190,8 @@ do i_step=2,n_step
 end do
 alphadot(1)=alphadot(2)
 hdot(1)=hdot(2)
+
+write(*,*)'passing line194'
 
 !Initial conditions
 n_lev=0

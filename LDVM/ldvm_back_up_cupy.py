@@ -1,14 +1,12 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import scipy as scp
-import pandas
-#from scipy.integrate import trapezoid
 import time
+import matplotlib.pyplot as plt
 import matplotlib.colorbar as cbar
+import cupy as cp
 from matplotlib.animation import FuncAnimation
 from matplotlib.colors import Normalize
+import scipy
 from matplotlib.cm import ScalarMappable
-from multiprocessing import Pool, cpu_count
 import matplotlib.gridspec as gridspec
 
 parameters = {'axes.labelsize': 12,
@@ -28,23 +26,23 @@ class ldvm:
         self.iter_max=100
         self.kelv_enf=0.0
         if config is not None:
-            self.u_ref=np.float64(config['u_ref'])
-            self.chord=np.float64(config['chord'])
-            self.pvt=np.float64(config['pvt'])
-            self.n_div=np.int64(config['n_div'])
-            self.cm_pvt=np.float64(config['cm_pvt'])
+            self.u_ref=cp.float64(config['u_ref'])
+            self.chord=cp.float64(config['chord'])
+            self.pvt=cp.float64(config['pvt'])
+            self.n_div=cp.int64(config['n_div'])
+            self.cm_pvt=cp.float64(config['cm_pvt'])
             self.foil_name=config['foil_name']
-            self.re_ref=np.float64(config['re_ref'])
-            self.lesp_crit=np.float64(config['lesp_crit'])
+            self.re_ref=cp.float64(config['re_ref'])
+            self.lesp_crit=cp.float64(config['lesp_crit'])
 
             self.motion_file_name=config['motion_file_name']
             self.force_file_name=config['force_file_name']
             self.flow_file_name=config['flow_file_name']
             self.n_pts_flow=config['n_pts_flow']
         else:
-            self.u_ref=np.float64(1.0)
-            self.chord=np.float64(1.0)
-            self.pvt=np.float64(0.25)
+            self.u_ref=cp.float64(1.0)
+            self.chord=cp.float64(1.0)
+            self.pvt=cp.float64(0.25)
             self.cm_pvt=0.25
             self.foil_name='NACA0012'
             self.re_ref=float(1e6)
@@ -57,11 +55,9 @@ class ldvm:
 
 
 
-        self.dtheta=np.pi/(self.n_div-1)
-        self.theta = np.linspace(0, np.pi, self.n_div)
-        self.x=(self.chord/2.)*(1-np.cos(self.theta))
-        
-        self.W_trapz_integration=self.make_trapezoid_integration_matrix(self.n_div)
+        self.dtheta=cp.pi/(self.n_div-1)
+        self.theta = cp.linspace(0, cp.pi, self.n_div)
+        self.x=(self.chord/2.)*(1-cp.cos(self.theta))
 
         ##Dimmensionalize parameters
         self.v_core=self.v_core*self.chord
@@ -90,7 +86,7 @@ class ldvm:
 
         self.time = motion_data['time'].values*self.chord/self.u_ref
 
-        self.alpha = motion_data['alpha'].values*np.pi/180
+        self.alpha = motion_data['alpha'].values*cp.pi/180
         self.h = motion_data['h'].values*self.chord
 
         self.u = motion_data['u'].values*self.u_ref
@@ -98,30 +94,26 @@ class ldvm:
 
 
         ## ADD Camber computation stuff
-        self.alphadot=np.diff(self.alpha)/np.diff(self.time)
-        self.hdot=np.diff(self.h)/np.diff(self.time)
-        self.alphadot=np.concatenate(([self.alphadot[0]], self.alphadot))
-        self.hdot=np.concatenate(([self.hdot[0]], self.hdot))
+        self.alphadot=cp.diff(self.alpha)/cp.diff(self.time)
+        self.hdot=cp.diff(self.h)/cp.diff(self.time)
+        self.alphadot=cp.concatenate(([self.alphadot[0]], self.alphadot))
+        self.hdot=cp.concatenate(([self.hdot[0]], self.hdot))
 
 
-    def make_trapezoid_integration_matrix(self,n_div):
-        W=np.ones(n_div)
-        W[0]=0.5
-        W[-1]=0.5
-        return W
+
     def initialize_computation(self):
         # Initialize computation parameters
         self.n_lev=0
         self.n_tev=0
-        self.aterm=np.zeros(self.n_aterm)
-        self.aterm_prev=np.zeros(self.n_aterm)
-        self.bound_vortex_pos=np.zeros((self.n_div, 3))
+        self.aterm=cp.zeros(self.n_aterm)
+        self.aterm_prev=cp.zeros(self.n_aterm)
+        self.bound_vortex_pos=cp.zeros((self.n_div, 3))
         self.levflag=0
         self.dist_wind=0
         self.i_step=0
 
-        self.tev=np.empty((0, 3))
-        self.lev=np.empty((0, 3))
+        self.tev=cp.empty((0, 3))
+        self.lev=cp.empty((0, 3))
 
 
         self.bound_circ_save=[]
@@ -129,22 +121,21 @@ class ldvm:
 
         self.cam,self.cam_slope=self.calc_camber_slope()
 
-    def make_traz_int(self,n_div):
-        W=np.ones((n_div, 3))  # Initialize W with ones
-    def calc_camber_slope(self, plot=True):
-        from scipy.interpolate import CubicSpline
-        #Constructing camber slope from airfoil file
-        if self.foil_name== 'flate_plate':
-            return np.zeros(self.n_div),np.zeros(self.n_div)
 
-        data_profile=np.loadtxt(self.foil_name)
+    def calc_camber_slope(self, plot=True):
+        #from scipy.interpolate import CubicSpline
+        #Constructing camber slope from airfoil file
+        if True:# self.foil_name== 'flate_plate':
+            return cp.zeros(self.n_div),cp.zeros(self.n_div)
+
+        data_profile=cp.loadtxt(self.foil_name)
         xcoord = data_profile[:, 0]
         ycoord = data_profile[:, 1]
         n_coord = len(xcoord)
         
 
 
-        xcoord_sum = np.zeros(n_coord)
+        xcoord_sum = cp.zeros(n_coord)
         
 
 
@@ -155,8 +146,8 @@ class ldvm:
 
         cs = CubicSpline(xcoord_sum, ycoord)#, bc_type="natural")  # 'natural' = second derivative zero at ends
         ysplined = cs(xcoord_sum, 2)
-        y_coord_ans=np.zeros(2*self.n_div)
-        xreq=np.zeros(2*self.n_div)
+        y_coord_ans=cp.zeros(2*self.n_div)
+        xreq=cp.zeros(2*self.n_div)
         xreq[:self.n_div]=self.x/self.chord
         y_coord_ans[:self.n_div] = cs(xreq[:self.n_div])
 
@@ -164,10 +155,10 @@ class ldvm:
         y_coord_ans[self.n_div:] = cs(xreq[self.n_div:])
 
 
-        cam=np.zeros(self.n_div)
+        cam=cp.zeros(self.n_div)
         cam=(y_coord_ans[:self.n_div][::-1]+y_coord_ans[self.n_div:])/2
         cam=cam*self.chord
-        cam_slope=np.zeros(self.n_div)
+        cam_slope=cp.zeros(self.n_div)
         cam_slope[0]=(cam[1]-cam[0])/(self.x[1]-self.x[0])
         cam_slope[1:]=(cam[1:]-cam[:-1])/(self.x[1:]-self.x[:-1])
         if plot:
@@ -181,34 +172,42 @@ class ldvm:
             plt.legend()
             plt.savefig('camber_slope.png', dpi=300)
             plt.show()
+        print("Camber slope computed", cam_slope,cam)
         
         return cam, cam_slope
 
     def calc_downwash_boundcirc(self):
-        
+
         
         
 
-        uind=np.zeros((1,self.n_div))
-        wind=np.zeros((1,self.n_div))
+        uind = cp.zeros((1, self.n_div))
+        wind = cp.zeros((1, self.n_div))
+
+        x_tev = self.tev[:, 1]            # CuPy array (n_tev,)
+        z_tev = self.tev[:, 2]            # CuPy array (n_tev,)
+
+        x_bound = self.bound_vortex_pos[:, 1]  # CuPy array (n_bound_vortex_pos,)
+        z_bound = self.bound_vortex_pos[:, 2]  # CuPy array (n_bound_vortex_pos,)
+
         
-        # Compute wake induced velocity
-        x_tev = self.tev[:, 1]               # shape (n_tev,)
-        z_tev = self.tev[:, 2]               # shape (n_tev,)
+        time_deb = time.time()
+        xdist_TEV_Bound = x_tev[:, None] - x_bound[None, :]  # (n_tev, n_bound_vortex_pos)
+        zdist_TEV_Bound = z_tev[:, None] - z_bound[None, :]  # (n_tev, n_bound_vortex_pos)
 
-        x_bound = self.bound_vortex_pos[:, 1]  # shape (n_bound_vortex_pos,)
-        z_bound = self.bound_vortex_pos[:, 2]  # shape (n_bound_vortex_pos,)
-        xdist_TEV_Bound = x_tev[:, None] - x_bound[None, :]   # shape (n_tev, n_bound_vortex_pos)
-        zdist_TEV_Bound = z_tev[:, None] - z_bound[None, :]         
-        dist=xdist_TEV_Bound**2+zdist_TEV_Bound**2
-        Gamma=(self.tev[:,0]).reshape(1,-1)
+        dist = xdist_TEV_Bound**2 + zdist_TEV_Bound**2
+        Gamma = (self.tev[:, 0]).reshape(1, -1)
 
-        Ustar=(-zdist_TEV_Bound)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
-        Wstar=(-xdist_TEV_Bound)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        # cp.cuda.Stream.null.synchronize()  # Synchronisation obligatoire ici !
+
+        
+        Ustar=(-zdist_TEV_Bound)/(2*cp.pi*cp.sqrt(self.v_core**4+dist**2))
+        Wstar=(-xdist_TEV_Bound)/(2*cp.pi*cp.sqrt(self.v_core**4+dist**2))
         uind=uind+Gamma@Ustar
 
         wind=wind-Gamma@Wstar
         # Compute lev induced velocity
+
         x_lev = self.lev[:, 1]               # shape (n_lev,)
         z_lev = self.lev[:, 2]               # shape (n_lev,)
 
@@ -219,52 +218,55 @@ class ldvm:
         zdist_LEV_Bound = z_lev[:, None] - z_bound[None, :]   # shape (n_lev, n_bound_vortex_pos)
 
         dist=xdist_LEV_Bound**2+zdist_LEV_Bound**2
+
         Gamma=(self.lev[:,0]).reshape(1,-1)
-        Ustar=(-zdist_LEV_Bound)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
-        Wstar=(-xdist_LEV_Bound)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        Ustar=(-zdist_LEV_Bound)/(2*cp.pi*cp.sqrt(self.v_core**4+dist**2))
+        Wstar=(-xdist_LEV_Bound)/(2*cp.pi*cp.sqrt(self.v_core**4+dist**2))
 
 
         uind=uind+Gamma@Ustar
         wind=wind-Gamma@Wstar
+        
+
         # Compute the downwash
-        downwash=(-self.u[self.i_step]*np.sin(self.alpha[self.i_step]))+\
-            (-uind*np.sin(self.alpha[self.i_step]))+\
-            (self.hdot[self.i_step]*np.cos(self.alpha[self.i_step]))+\
-            (-wind*np.cos(self.alpha[self.i_step]))+\
+        downwash=(-self.u[self.i_step]*cp.sin(self.alpha[self.i_step]))+\
+            (-uind*cp.sin(self.alpha[self.i_step]))+\
+            (self.hdot[self.i_step]*cp.cos(self.alpha[self.i_step]))+\
+            (-wind*cp.cos(self.alpha[self.i_step]))+\
             (-self.alphadot[self.i_step]*(self.x-self.pvt*self.chord))+\
-            (self.cam_slope*((uind*np.cos(self.alpha[self.i_step]))+(self.u[self.i_step]*np.cos(self.alpha[self.i_step]))+(self.hdot[self.i_step]*np.sin(self.alpha[self.i_step]))+(-wind*np.sin(self.alpha[self.i_step]))))
+            (self.cam_slope*((uind*cp.cos(self.alpha[self.i_step]))+(self.u[self.i_step]*cp.cos(self.alpha[self.i_step]))+(self.hdot[self.i_step]*cp.sin(self.alpha[self.i_step]))+(-wind*cp.sin(self.alpha[self.i_step]))))
 
+        aterm0=0.0
+        aterm1=0.0
+        for i_div in range (1,self.n_div):
+            aterm0=aterm0+(((downwash[0,i_div]+downwash[0,i_div-1])/2)*self.dtheta)
+            aterm1=aterm1+(((downwash[0,i_div]*cp.cos(self.theta[i_div])+downwash[0,i_div-1]*cp.cos(self.theta[i_div-1]))/2)*self.dtheta)
 
-        aterm0=self.W_trapz_integration.reshape(1, -1) @ downwash.reshape(-1, 1)*self.dtheta  # Trapezoidal integration for aterm0
-        aterm1=self.W_trapz_integration.reshape(1, -1) @ (downwash * np.cos(self.theta)).reshape(-1, 1) * self.dtheta  # Trapezoidal integration for aterm1
-        
-        aterm0=(-1./(self.u_ref*np.pi))*np.squeeze(aterm0)
-        aterm1=(2./(self.u_ref*np.pi))*np.squeeze(aterm1)
-        bound_circ=self.u_ref*self.chord*np.pi*(aterm0+(aterm1/2.))
+        aterm0=(-1./(self.u_ref*cp.pi))*aterm0
+        aterm1=(2./(self.u_ref*cp.pi))*aterm1
+        bound_circ=self.u_ref*self.chord*cp.pi*(aterm0+(aterm1/2.))
 
-        
-        
-        
-        
         return aterm0, aterm1, downwash,bound_circ,uind,wind
 
 
     def one_D_tev_shedding(self):
         # Perform tev shedding assuming LEV is not formed.
         #TEV shed at every time step
-        tev_iter=np.zeros(101)
-        kelv=np.zeros(100)
+        tev_iter=cp.zeros(101)
+        kelv=cp.zeros(100)
         tev_iter[0]=0
         tev_iter[1]=-0.01
 
         if self.n_tev==0:
             x_tev=self.bound_vortex_pos[self.n_div-1,1]+0.5*self.u[self.i_step]*(self.time[self.i_step]-self.time[self.i_step-1])
             y_tev= self.bound_vortex_pos[self.n_div-1,2]
-            self.tev=np.concatenate((self.tev, np.array([[0, x_tev, y_tev]])), axis=0)
+
+            self.tev=cp.concatenate((self.tev, cp.array([[cp.array(0), x_tev, y_tev]])), axis=0)
+            
         else:
             x_tev=self.bound_vortex_pos[self.n_div-1,1]+((1./3.)*(self.tev[self.n_tev-1,1]-self.bound_vortex_pos[self.n_div-1,1]))
             y_tev=self.bound_vortex_pos[self.n_div-1,2]+((1./3.)*(self.tev[self.n_tev-1,2]-self.bound_vortex_pos[self.n_div-1,2]))
-            self.tev=np.concatenate((self.tev, np.array([[0, x_tev, y_tev]])), axis=0)
+            self.tev=cp.concatenate((self.tev, cp.array([[cp.array(0), x_tev, y_tev]])), axis=0)
         #Iterating to find AO value assuming no LEV is formed
         iter=0
         while (iter<self.iter_max-1):
@@ -273,9 +275,9 @@ class ldvm:
             aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc()
             kelv[iter]=self.kelv_enf
             if self.lev.size>0:
-                kelv[iter]+=np.sum(self.lev[:,0])
+                kelv[iter]+=cp.sum(self.lev[:,0])
             if self.tev.size>0:
-                kelv[iter]+=np.sum(self.tev[:,0])
+                kelv[iter]+=cp.sum(self.tev[:,0])
             kelv[iter]=kelv[iter]+bound_circ
             if (abs(kelv[iter])<self.eps) :
                 break
@@ -287,14 +289,15 @@ class ldvm:
 
     def two_D_lev_tev_shedding(self,le_vel_x,le_vel_y,lesp):
 
-        tev_iter=np.zeros(101)
-        lev_iter=np.zeros(101)
-        kelv=np.zeros(100)
+        tev_iter=cp.zeros(101)
+        lev_iter=cp.zeros(101)
+        kelv=cp.zeros(100)
 
-        kutta=np.zeros(100)
+        kutta=cp.zeros(100)
 
         #2D iteration if LESP_crit is exceeded
-
+        if (abs(lesp)>self.lesp_crit):
+            print("A LEV is formed")
 
 
         if (lesp>0) :
@@ -314,7 +317,7 @@ class ldvm:
         else:
             x_lev=self.bound_vortex_pos[0,1]+((1./3.)*(self.lev[self.n_lev-1,1]-self.bound_vortex_pos[0,1]))
             y_lev=self.bound_vortex_pos[0,2]+((1./3.)*(self.lev[self.n_lev-1,2]-self.bound_vortex_pos[0,2]))
-        self.lev=np.concatenate((self.lev, np.array([[0, x_lev, y_lev]])), axis=0)
+        self.lev=cp.concatenate((self.lev, cp.array([[cp.array(0), x_lev, y_lev]])), axis=0)
         self.levflag=1
 
 
@@ -333,8 +336,8 @@ class ldvm:
 
 
             kelv_tev=self.kelv_enf
-            kelv_tev+=np.sum(self.lev[:,0])
-            kelv_tev+=np.sum(self.tev[:,0])
+            kelv_tev+=cp.sum(self.lev[:,0])
+            kelv_tev+=cp.sum(self.tev[:,0])
             kelv_tev+=bound_circ
 
 
@@ -350,8 +353,8 @@ class ldvm:
             aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc()
             kelv_lev=self.kelv_enf
 
-            kelv_lev+=np.sum(self.lev[:,0])
-            kelv_lev+=np.sum(self.tev[:,0])
+            kelv_lev+=cp.sum(self.lev[:,0])
+            kelv_lev+=cp.sum(self.tev[:,0])
             kelv_lev+=bound_circ
 
 
@@ -367,8 +370,8 @@ class ldvm:
 
             aterm0, aterm1, downwash, bound_circ,uind,wind=self.calc_downwash_boundcirc()
             kelv[iter]=self.kelv_enf
-            kelv[iter]+=np.sum(self.lev[:,0])
-            kelv[iter]+=np.sum(self.tev[:,0])
+            kelv[iter]+=cp.sum(self.lev[:,0])
+            kelv[iter]+=cp.sum(self.tev[:,0])
 
             kelv[iter]+=bound_circ
 
@@ -395,56 +398,56 @@ class ldvm:
                 # Update Tev numbers
         self.n_tev=self.n_tev+1
 
-        uind_tev=np.zeros(self.n_tev) # Vitesse induite sur les TEV
+        uind_tev=cp.zeros(self.n_tev) # Vitesse induite sur les TEV
 
-        wind_tev=np.zeros(self.n_tev)
+        wind_tev=cp.zeros(self.n_tev)
 
-        x = self.tev[:, 1]
-        z = self.tev[:, 2]
-        xdist_TEV_TEV = x[:, None] - x[None, :]  # shape (n_tev, n_tev)
-        zdist_TEV_TEV = z[:, None] - z[None, :]
+        x_tev = self.tev[:, 1]  # (n_tev,)
+        z_tev = self.tev[:, 2]  # (n_tev,)
+
+        xdist_TEV_TEV = x_tev[:, None] - x_tev[None, :]  # (n_tev, n_tev)
+        zdist_TEV_TEV = z_tev[:, None] - z_tev[None, :]  # (n_tev, n_tev)
         dist=xdist_TEV_TEV**2+zdist_TEV_TEV**2
         Gamma=(self.tev[:,0]).reshape(1,-1)
-        Ustar=(-zdist_TEV_TEV)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
-        Wstar=(-xdist_TEV_TEV)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        Ustar=(-zdist_TEV_TEV)/(2*cp.pi*cp.sqrt(self.v_core**4+dist**2))
+        Wstar=(-xdist_TEV_TEV)/(2*cp.pi*cp.sqrt(self.v_core**4+dist**2))
 
         uind_tev=uind_tev+Gamma@Ustar
         wind_tev=wind_tev-Gamma@Wstar
 
         # LEV induced velocity on TEV
-        x_lev = self.lev[:, 1]  # shape (n_lev,)
-        z_lev = self.lev[:, 2]  # shape (n_lev,)
+        x_lev = self.lev[:, 1]  # (n_lev,)
+        z_lev = self.lev[:, 2]  # (n_lev,)
 
-        x_tev = self.tev[:, 1]  # shape (n_tev,)
-        z_tev = self.tev[:, 2]  # shape (n_tev,)
+        x_tev = self.tev[:, 1]  # (n_tev,)
+        z_tev = self.tev[:, 2]  # (n_tev,)
 
-        # Broadcasting pour différence entre chaque lev et chaque tev
-        xdist_LEV_TEV = x_lev[:, None] - x_tev[None, :]  # shape (n_lev, n_tev)
-        zdist_LEV_TEV = z_lev[:, None] - z_tev[None, :]  # shape (n_lev, n_tev)
+        xdist_LEV_TEV = x_lev[:, None] - x_tev[None, :]  # (n_lev, n_tev)
+        zdist_LEV_TEV = z_lev[:, None] - z_tev[None, :]  # (n_lev, n_tev)
         dist=xdist_LEV_TEV**2+zdist_LEV_TEV**2
         Gamma=(self.lev[:,0]).reshape(1,-1)
 
 
-        Ustar=(-zdist_LEV_TEV)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
-        Wstar=(-xdist_LEV_TEV)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        Ustar=(-zdist_LEV_TEV)/(2*cp.pi*cp.sqrt(self.v_core**4+dist**2))
+        Wstar=(-xdist_LEV_TEV)/(2*cp.pi*cp.sqrt(self.v_core**4+dist**2))
         uind_tev=uind_tev+Gamma@Ustar# Warning sum is to be done in the appropriate direction +multiplication issue
         wind_tev=wind_tev-Gamma@Wstar #Warning sum is to be done in the appropriate direction +multiplication issue
 
         #Profile sur TEV
-        x_bound = bound_int[:, 1]  # shape (n_bound_int,)
-        z_bound = bound_int[:, 2]  # shape (n_bound_int,)
+        x_bound_int = bound_int[:, 1]  # (n_bound_int,)
+        z_bound_int = bound_int[:, 2]  # (n_bound_int,)
 
-        x_tev = self.tev[:, 1]     # shape (n_tev,)
-        z_tev = self.tev[:, 2]     # shape (n_tev,)
+        x_tev = self.tev[:, 1]         # (n_tev,)
+        z_tev = self.tev[:, 2]         # (n_tev,)
 
-        bound_int_xdist = x_bound[:, None] - x_tev[None, :]  # shape (n_bound_int, n_tev)
-        bound_int_zdist = z_bound[:, None] - z_tev[None, :]  # shape (n_bound_int, n_tev)
+        bound_int_xdist = x_bound_int[:, None] - x_tev[None, :]  # (n_bound_int, n_tev)
+        bound_int_zdist = z_bound_int[:, None] - z_tev[None, :] 
 
         dist=bound_int_xdist**2+bound_int_zdist**2
         Gamma=(bound_int[:,0]).reshape(1,-1)
 
-        Ustar=(-bound_int_zdist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
-        Wstar=(-bound_int_xdist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        Ustar=(-bound_int_zdist)/(2*cp.pi*cp.sqrt(self.v_core**4+dist**2))
+        Wstar=(-bound_int_xdist)/(2*cp.pi*cp.sqrt(self.v_core**4+dist**2))
 
         #print(Gamma.shape,Ustar.shape)
 
@@ -453,22 +456,22 @@ class ldvm:
 
         # Vitesse induite sur les LEV
 
-        uind_lev=np.zeros(self.n_lev)
-        wind_lev=np.zeros(self.n_lev)
+        uind_lev=cp.zeros(self.n_lev)
+        wind_lev=cp.zeros(self.n_lev)
 
 
         #Vitesse LEV sur LEV
 
-        x_lev = self.lev[:, 1]  # shape (n_lev,)
-        z_lev = self.lev[:, 2]  # shape (n_lev,)
+        x_lev = self.lev[:, 1]  # (n_lev,)
+        z_lev = self.lev[:, 2]  # (n_lev,)
 
-        xdist_LEV_LEV = x_lev[:, None] - x_lev[None, :]  # shape (n_lev, n_lev)
-        zdist_LEV_LEV = z_lev[:, None] - z_lev[None, :]  # shape (n_lev, n_lev)
+        xdist_LEV_LEV = x_lev[:, None] - x_lev[None, :]  # (n_lev, n_lev)
+        zdist_LEV_LEV = z_lev[:, None] - z_lev[None, :]  # (n_lev, n_lev)
         Gamma=(self.lev[:,0]).reshape(1,-1)
 
         dist=xdist_LEV_LEV**2+zdist_LEV_LEV**2
-        Ustar=(-zdist_LEV_LEV)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
-        Wstar=(-xdist_LEV_LEV)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        Ustar=(-zdist_LEV_LEV)/(2*cp.pi*cp.sqrt(self.v_core**4+dist**2))
+        Wstar=(-xdist_LEV_LEV)/(2*cp.pi*cp.sqrt(self.v_core**4+dist**2))
 
         uind_lev=uind_lev+Gamma@Ustar
         wind_lev=wind_lev-Gamma@Wstar
@@ -481,16 +484,16 @@ class ldvm:
         z_lev = self.lev[:, 2]  # (n_lev,)
 
         xdist_TEV_LEV = x_tev[:, None] - x_lev[None, :]  # (n_tev, n_lev)
-        zdist_TEV_LEV = z_tev[:, None] - z_lev[None, :]  
+        zdist_TEV_LEV = z_tev[:, None] - z_lev[None, :]  # (n_tev, n_lev)
+
         dist=xdist_TEV_LEV**2+zdist_TEV_LEV**2
         Gamma=(self.tev[:,0]).reshape(1,-1)
 
-        Ustar=(-zdist_TEV_LEV)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
-        Wstar=(-xdist_TEV_LEV)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        Ustar=(-zdist_TEV_LEV)/(2*cp.pi*cp.sqrt(self.v_core**4+dist**2))
+        Wstar=(-xdist_TEV_LEV)/(2*cp.pi*cp.sqrt(self.v_core**4+dist**2))
 
         uind_lev=uind_lev+Gamma@Ustar
         wind_lev=wind_lev-Gamma@Wstar
-
         x_bound_int = bound_int[:, 1]  # (n_bound_int,)
         z_bound_int = bound_int[:, 2]  # (n_bound_int,)
 
@@ -502,8 +505,8 @@ class ldvm:
         dist=bound_int_xdist**2+bound_int_zdist**2
 
         Gamma=(bound_int[:,0]).reshape(1,-1)
-        Ustar=(-bound_int_zdist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
-        Wstar=(-bound_int_xdist)/(2*np.pi*np.sqrt(self.v_core**4+dist**2))
+        Ustar=(-bound_int_zdist)/(2*cp.pi*cp.sqrt(self.v_core**4+dist**2))
+        Wstar=(-bound_int_xdist)/(2*cp.pi*cp.sqrt(self.v_core**4+dist**2))
 
         uind_lev=uind_lev+Gamma@Ustar
         wind_lev=wind_lev-Gamma@Wstar
@@ -521,33 +524,22 @@ class ldvm:
     def compute_forces(self, bound_int, uind, wind, adot0, adot1, adot2, adot3):
                 #Load coefficient calculation (nondimensional units)
 
-        cnc=(2*np.pi*((self.u[self.i_step]*np.cos(self.alpha[self.i_step])/self.u_ref)+(self.hdot[self.i_step]*np.sin(self.alpha[self.i_step])/self.u_ref))*(self.aterm[0]+self.aterm[1]/2))
-        cnnc=(2*np.pi*((3*self.chord*adot0/(4*self.u_ref))+(self.chord*adot1/(4*self.u_ref))+(self.chord*adot2/(8*self.u_ref))))
-        cs=2*np.pi*self.aterm[0]*self.aterm[0]
+        cnc=(2*cp.pi*((self.u[self.i_step]*cp.cos(self.alpha[self.i_step])/self.u_ref)+(self.hdot[self.i_step]*cp.sin(self.alpha[self.i_step])/self.u_ref))*(self.aterm[0]+self.aterm[1]/2))
+        cnnc=(2*cp.pi*((3*self.chord*adot0/(4*self.u_ref))+(self.chord*adot1/(4*self.u_ref))+(self.chord*adot2/(8*self.u_ref))))
+        cs=2*cp.pi*self.aterm[0]*self.aterm[0]
         #The components of normal force and moment from induced velocities are calulcated in dimensional units and nondimensionalized later
-        # Vectorized computation
-        cos_alpha = np.cos(self.alpha[self.i_step])
-        sin_alpha = np.sin(self.alpha[self.i_step])
-
-        # Compute the induced velocity term for all divisions
-        induced_velocity = (uind[0, 1:] * cos_alpha) - (wind[0, 1:] * sin_alpha)
-
-        # Compute non_l
-        non_l = np.sum(induced_velocity * bound_int[:, 0])
-
-        # Compute nonl_m
-        nonl_m = np.sum(induced_velocity * self.x[1:] * bound_int[:, 0])
-        
-        
-        non_l=non_l*(2/(self.u_ref*self.u_ref*self.chord))        
+        non_l=0
+        nonl_m=0
+        #nonl=cp.sum(((uind*cp.cos(self.alpha[self.i_step]))-(wind*cp.sin(self.alpha[self.i_step])))*bound_int[:,0])
+        for i_div in range(1,self.n_div):
+            non_l=non_l+(((uind[0,i_div]*cp.cos(self.alpha[self.i_step]))-(wind[0,i_div]*cp.sin(self.alpha[self.i_step])))*bound_int[i_div-1,0])
+            nonl_m=nonl_m+(((uind[0,i_div]*cp.cos(self.alpha[self.i_step]))-(wind[0,i_div]*cp.sin(self.alpha[self.i_step])))*(self.x[i_div])*bound_int[i_div-1,0])
+        non_l=non_l*(2/(self.u_ref*self.u_ref*self.chord))
         nonl_m=nonl_m*(2/(self.u_ref*self.u_ref*self.chord*self.chord))
-        
-        
-        
         cn=cnc+cnnc+non_l
-        cl=cn*np.cos(self.alpha[self.i_step])+cs*np.sin(self.alpha[self.i_step])
-        cd=cn*np.sin(self.alpha[self.i_step])-cs*np.cos(self.alpha[self.i_step])
-        cm=cn*self.cm_pvt-(2*np.pi*(((self.u[self.i_step]*np.cos(self.alpha[self.i_step])/self.u_ref)+(self.hdot[self.i_step]*np.sin(self.alpha[self.i_step])/self.u_ref))*((self.aterm[0]/4)+(self.aterm[1]/4)-(self.aterm[2]/8))+(self.chord/self.u_ref)*((7*adot0/16)+(3*adot1/16)+(adot2/16)-(adot3/64))))-nonl_m
+        cl=cn*cp.cos(self.alpha[self.i_step])+cs*cp.sin(self.alpha[self.i_step])
+        cd=cn*cp.sin(self.alpha[self.i_step])-cs*cp.cos(self.alpha[self.i_step])
+        cm=cn*self.cm_pvt-(2*cp.pi*(((self.u[self.i_step]*cp.cos(self.alpha[self.i_step])/self.u_ref)+(self.hdot[self.i_step]*cp.sin(self.alpha[self.i_step])/self.u_ref))*((self.aterm[0]/4)+(self.aterm[1]/4)-(self.aterm[2]/8))+(self.chord/self.u_ref)*((7*adot0/16)+(3*adot1/16)+(adot2/16)-(adot3/64))))-nonl_m
 
         return cl, cd, cm, cn
 
@@ -556,48 +548,48 @@ class ldvm:
         # Create a parameterized motion for the airfoil
         
         omega=2*self.u_ref*k/self.chord
-        period=2*np.pi/omega
-        self.time=np.linspace(0, period, ppp)
+        period=2*cp.pi/omega
+        self.time=cp.linspace(0, period, ppp)
         self.dt=self.time[1]-self.time[0]
-        self.alpha=alpha0*np.sin(omega*self.time)
-        self.h=h0*np.sin(omega*self.time-phi) 
+        self.alpha=alpha0*cp.sin(omega*self.time)
+        self.h=h0*cp.sin(omega*self.time-phi) 
         
 
 
 
-        self.alphadot=omega*alpha0*np.cos(omega*self.time)
-        self.hdot=omega*h0*np.cos(omega*self.time-phi)
+        self.alphadot=omega*alpha0*cp.cos(omega*self.time)
+        self.hdot=omega*h0*cp.cos(omega*self.time-phi)
         
         
-        self.u=self.u_ref*np.ones_like(self.time)
-        # data_save=np.array([self.time*ldvm_instance.chord/self.u_ref, self.alpha*180/np.pi, self.h/ldvm_instance.chord, np.ones(ppp)]).T
+        self.u=self.u_ref*cp.ones_like(self.time)
+        # data_save=cp.array([self.time*ldvm_instance.chord/self.u_ref, self.alpha*180/cp.pi, self.h/ldvm_instance.chord, cp.ones(ppp)]).T
     
-        # np.savetxt('motion_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp), data_save)
+        # cp.savetxt('motion_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/cp.pi,h0,k,phi,ppp), data_save)
         # print("omega = {}, period = {}, dt = {}".format(omega, period, self.dt))
        
     def step(self):
 
         # Perform a single step of the computation
         self.i_step+=1
-        if self.i_step%100 ==0 :
-            print("Step: {}, number of lev {}, number of tev {}, time {},tmax ={}".format(self.i_step, self.n_lev, self.n_tev,self.time[self.i_step],self.time[-1]))
+        print("Step: {}, number of lev {}, number of tev {}, time {},tmax ={}".format(self.i_step, self.n_lev, self.n_tev,self.time[self.i_step],self.time[-1]))
         #Calculate bound vortex positions at this time step
         self.dist_wind=self.dist_wind+(self.u[self.i_step-1]*(self.time[self.i_step]-self.
         time[self.i_step-1]))
 
-        self.bound_vortex_pos[:,1]=-((self.chord-self.pvt*self.chord)+((self.pvt*self.chord-self.x)*np.cos(self.alpha[self.i_step]))+self.dist_wind) + (self.cam*np.sin(self.alpha[self.i_step]))
-        self.bound_vortex_pos[:,2]=self.h[self.i_step]+((self.pvt*self.chord-self.x)*np.sin(self.alpha[self.i_step]))+(self.cam*np.cos(self.alpha[self.i_step]))
+        self.bound_vortex_pos[:,1]=-((self.chord-self.pvt*self.chord)+((self.pvt*self.chord-self.x)*cp.cos(self.alpha[self.i_step]))+self.dist_wind) + (self.cam*cp.sin(self.alpha[self.i_step]))
+        self.bound_vortex_pos[:,2]=self.h[self.i_step]+((self.pvt*self.chord-self.x)*cp.sin(self.alpha[self.i_step]))+(self.cam*cp.cos(self.alpha[self.i_step]))
 
         downwash,aterm0,aterm1,bound_circ,uind,wind=self.one_D_tev_shedding()
 
         #Comupte the fourier terms
+        self.aterm[2]=0.0
+        self.aterm[3]=0.0
+        for i_aterm in range(2,4):
+            for i_div in range(1, self.n_div):
+                self.aterm[i_aterm]= self.aterm[i_aterm]+((((downwash[0,i_div]*cp.cos(i_aterm*self.theta[i_div]))+(downwash[0,i_div-1]*cp.cos(i_aterm*self.theta[i_div-1])))/2)*self.dtheta)
 
-        self.aterm[2]=self.W_trapz_integration.reshape(1,-1)@(downwash*np.cos(2*self.theta)).reshape(-1,1)*self.dtheta
-        
-        self.aterm[3]=self.W_trapz_integration.reshape(1,-1)@(downwash*np.cos(3*self.theta)).reshape(-1,1)*self.dtheta
-        self.aterm[2]=(2./(self.u_ref*np.pi))*self.aterm[2]
-        self.aterm[3]=(2./(self.u_ref*np.pi))*self.aterm[3]
 
+            self.aterm[i_aterm]=(2./(self.u_ref*cp.pi))*self.aterm[i_aterm]
         adot0=(aterm0-self.aterm_prev[0])/(self.time[self.i_step]-self.time[self.i_step-1])
         adot1=(aterm1-self.aterm_prev[1])/(self.time[self.i_step]-self.time[self.i_step-1])
         adot2=(self.aterm[2]-self.aterm_prev[2])/(self.time[self.i_step]-self.time[self.i_step-1])
@@ -605,14 +597,15 @@ class ldvm:
 
 
 
-        le_vel_x=(self.u[self.i_step])-(self.alphadot[self.i_step]*np.sin(self.alpha[self.i_step])*self.pvt*self.chord)+uind[0,0]
-        le_vel_y=-(self.alphadot[self.i_step]*np.cos(self.alpha[self.i_step])*self.pvt*self.chord)-(self.hdot[self.i_step])+wind[0,0]
-        vmag=np.sqrt(le_vel_x*le_vel_x+le_vel_y*le_vel_y)
+        le_vel_x=(self.u[self.i_step])-(self.alphadot[self.i_step]*cp.sin(self.alpha[self.i_step])*self.pvt*self.chord)+uind[0,0]
+        le_vel_y=-(self.alphadot[self.i_step]*cp.cos(self.alpha[self.i_step])*self.pvt*self.chord)-(self.hdot[self.i_step])+wind[0,0]
+        vmag=cp.sqrt(le_vel_x*le_vel_x+le_vel_y*le_vel_y)
         re_le=self.re_ref*vmag/self.u_ref
         lesp=aterm0
 
         #Shed the TEV and LEV if LESP crit is exceeded
         if (abs(lesp)>self.lesp_crit):
+            print("A LEV is formed")
             aterm0, aterm1, downwash, bound_circ,uind,wind=self.two_D_lev_tev_shedding(le_vel_x,le_vel_y,lesp)
 
         else:
@@ -626,28 +619,24 @@ class ldvm:
             self.tev[0,0]=0
 
         #Calculate fourier terms and bound vorticity
+
         self.aterm[0] = aterm0
         self.aterm[1] = aterm1
-        self.aterm[2:] = 0.0 
-        
-        
-        iaterm=np.arange(2,self.n_aterm).reshape(-1,1)
-        cos_=(np.cos(iaterm*self.theta)*downwash[0,:]).T
-        self.aterm[2:]=self.W_trapz_integration.reshape(1, -1) @ cos_ * self.dtheta
-        self.aterm[2:]=(2./(self.u_ref*np.pi))*self.aterm[2:]
+        self.aterm[2:] = 0.0
+        for i_aterm in range(2, self.n_aterm):
+            self.aterm[i_aterm]=cp.sum((((downwash[0,1:]*cp.cos(i_aterm*self.theta[1:]))+(downwash[0,:-1]*cp.cos(i_aterm*self.theta[:-1])))/2))*self.dtheta
+            # For loop version
+            # for i_div in range(1, self.n_div):
+
+            #     self.aterm[i_aterm]= self.aterm[i_aterm]+((((downwash[0,i_div]*cp.cos(i_aterm*self.theta[i_div]))+(downwash[0,i_div-1]*cp.cos(i_aterm*self.theta[i_div-1])))/2)*self.dtheta)
+            self.aterm[i_aterm]=(2./(self.u_ref*cp.pi))*self.aterm[i_aterm]
         self.aterm_prev=self.aterm.copy()
-        
-        
-        
-        
-        
         #Calculate bound_vortex strengths
-        gamma = np.zeros(self.n_div)
-        gamma+=(self.aterm[0]*(1+np.cos(self.theta)))
-        
+        gamma = cp.zeros(self.n_div)
+        gamma+=(self.aterm[0]*(1+cp.cos(self.theta)))
         for i_aterm in range(1, self.n_aterm):
-            gamma+=(self.aterm[i_aterm]*np.sin(i_aterm*self.theta)*np.sin(self.theta))
-        bound_int=np.zeros((self.n_div-1,3))
+            gamma+=(self.aterm[i_aterm]*cp.sin(i_aterm*self.theta)*cp.sin(self.theta))
+        bound_int=cp.zeros((self.n_div-1,3))
         bound_int[:,0]=((gamma[1:]+gamma[:-1])/2)*self.dtheta
         bound_int[:,1]=(self.bound_vortex_pos[:-1,1]+self.bound_vortex_pos[1:,1])/2
         bound_int[:,2]=(self.bound_vortex_pos[:-1,2]+self.bound_vortex_pos[1:,2])/2
@@ -667,12 +656,12 @@ class ldvm:
 
         if (self.tev[0,1]-self.bound_vortex_pos[-1,1])>del_dist:
                 self.kelv_enf=self.kelv_enf+self.tev[0,0]
-                self.tev=np.delete(self.tev, 0, axis=0)
+                self.tev=cp.delete(self.tev, 0, axis=0)
                 self.n_tev=self.n_tev-1
         # Remove LEV if they are too far away
         if self.n_lev > 0 and (self.lev[0, 1] - self.bound_vortex_pos[-1, 1]) > self.del_dist:
             self.kelv_enf += self.lev[0, 0]
-            self.lev = np.delete(self.lev, 0, axis=0)
+            self.lev = cp.delete(self.lev, 0, axis=0)
             self.n_lev -= 1
         return cl, cd, cm, lesp, re_le,cn
 
@@ -697,7 +686,7 @@ class ldvm:
             ax2.set_ylim(-2, 2)
             ax2.set_yticks([])
             ax2.set_xticks([])
-            self.ref_data = np.loadtxt(file_reference)
+            self.ref_data = cp.loadtxt(file_reference)
         else:
             if colorscale:
                 fig = plt.figure(figsize=(10, 5),tight_layout=True)
@@ -740,11 +729,11 @@ class ldvm:
             bound_vortex_line.set_data([], [])
             if colorscale:
 
-                lev_line.set_offsets(np.empty((0, 2)))
-                tev_line.set_offsets(np.empty((0, 2)))
+                lev_line.set_offsets(cp.empty((0, 2)))
+                tev_line.set_offsets(cp.empty((0, 2)))
                 if add_reference:
-                    lev_line_ref.set_offsets(np.empty((0, 2)))
-                    tev_line_ref.set_offsets(np.empty((0, 2)))
+                    lev_line_ref.set_offsets(cp.empty((0, 2)))
+                    tev_line_ref.set_offsets(cp.empty((0, 2)))
 
             else:
                 lev_line.set_data([], [])
@@ -763,23 +752,23 @@ class ldvm:
 
             self.step()  # Perform a step to update the state
             if colorscale:
-                lev_line.set_offsets(np.c_[self.lev[:, 1], self.lev[:, 2]])
+                lev_line.set_offsets(cp.c_[self.lev[:, 1], self.lev[:, 2]])
                 if self.lev.shape[0] > 0:
                     lev_line.set_array(self.lev[:, 0])  # Color by circulation
 
 
                 # Update TEV points and colors
-                tev_line.set_offsets(np.c_[self.tev[:, 1], self.tev[:, 2]])
+                tev_line.set_offsets(cp.c_[self.tev[:, 1], self.tev[:, 2]])
                 if self.tev.shape[0] > 0:
                     tev_line.set_array(self.tev[:, 0])  # Color by circulation
 
                 if add_reference:
-                    nan_rows = np.where(np.isnan(self.ref_data).all(axis=1))[0]
+                    nan_rows = cp.where(cp.isnan(self.ref_data).all(axis=1))[0]
                     dat=self.ref_data[nan_rows[0]+1:nan_rows[1],:]
-                    lev_line_ref.set_offsets(np.c_[dat[:self.n_lev, 1], dat[:self.n_lev, 2]])
+                    lev_line_ref.set_offsets(cp.c_[dat[:self.n_lev, 1], dat[:self.n_lev, 2]])
                     if dat[:self.n_lev, 0].size > 0:
                         lev_line_ref.set_array(dat[:self.n_lev, 0])
-                    tev_line_ref.set_offsets(np.c_[dat[self.n_lev:self.n_lev+self.n_tev, 1], dat[self.n_lev:self.n_lev+self.n_tev, 2]])
+                    tev_line_ref.set_offsets(cp.c_[dat[self.n_lev:self.n_lev+self.n_tev, 1], dat[self.n_lev:self.n_lev+self.n_tev, 2]])
                     if dat[self.n_lev:self.n_lev+self.n_tev, 0].size > 0:
                         tev_line_ref.set_array(dat[self.n_lev:self.n_lev+self.n_tev, 0])
                     bound_vortex_line_ref.set_data(dat[-69:, 1], dat[-69:, 2])
@@ -788,7 +777,7 @@ class ldvm:
                 lev_line.set_data(self.lev[:, 1], self.lev[:, 2])
                 tev_line.set_data(self.tev[:, 1], self.tev[:, 2])
                 if add_reference:
-                    nan_rows = np.where(np.isnan(self.ref_data).all(axis=1))[0]
+                    nan_rows = cp.where(cp.isnan(self.ref_data).all(axis=1))[0]
                     dat=self.ref_data[nan_rows[0]+1:nan_rows[1],:]
                     lev_line_ref.set_data(dat[:self.n_lev, 1], dat[:self.n_lev, 2])
                     tev_line_ref.set_data(dat[self.n_lev:self.n_lev+self.n_tev, 1], dat[self.n_lev:self.n_lev+self.n_tev, 2])
@@ -834,61 +823,83 @@ if __name__ == "__main__":
         'n_pts_flow': 100,
         'rho':1.225,
         'nu': 1.566e-5,
-        'n_div': 70,
+        'n_div': 25,
     }
 
     ldvm_instance = ldvm(config)
     
     
+    # Check GPU availability
+    device = cp.cuda.Device()
+    
+    device_id = cp.cuda.Device().id  # ID du device actif
+    props = cp.cuda.runtime.getDeviceProperties(device_id)
+    print(f"✅ GPU detected: {props['name'].decode()}")
+    
+    time_debug = time.time()
+    start = cp.cuda.Event()
+    end = cp.cuda.Event()
+    start.record()
 
+    with cp.cuda.Device(0):
+        a = cp.random.rand(10000, 10000)
+        b = cp.random.rand(10000, 10000)
+        c = cp.matmul(a, b)
+        print(f"✅ GPU matrix multiplication took {time.time() - time_debug:.2f} seconds")
+        
     
+        k=0.05
+        alpha0=50*cp.pi/180
+        h0=0.1
+        phi=0.0
+        omega=2*ldvm_instance.u_ref*k/ldvm_instance.chord
+        period=2*cp.pi/omega
+        D=period*ldvm_instance.u_ref
     
-    k=0.05
-    alpha0=50*np.pi/180
-    h0=0.1
-    phi=0.0
-    omega=2*ldvm_instance.u_ref*k/ldvm_instance.chord
-    period=2*np.pi/omega
-    D=period*ldvm_instance.u_ref
-    
-    d_wake=1./ldvm_instance.n_div*ldvm_instance.chord
+        d_wake=1./ldvm_instance.n_div*ldvm_instance.chord
 
-    ppp=int(D/d_wake)
+        ppp=int(D/d_wake)
+        #ldvm_instance.load_motion()
+    
+        ldvm_instance.make_parameterized_motions(k=k,alpha0=alpha0,h0=h0,phi=phi,ppp=ppp)
+    
+
     #ldvm_instance.load_motion()
-    
-    ldvm_instance.make_parameterized_motions(k=k,alpha0=alpha0,h0=h0,phi=phi,ppp=ppp)
-    
-
-    #ldvm_instance.load_motion()
-    ldvm_instance.initialize_computation()
+        ldvm_instance.initialize_computation()
     #ldvm_instance.make_ldvm_animation(add_reference=True,colorscale=True)
 
-    cl_history = []
-    cd_history = []
-    cm_history = []
+        cl_history = []
+        cd_history = []
+        cm_history = []
 
-    for i in range(ppp-1):
-        #print(ldvm_instance.alpha[:i]*180/np.pi)
-        cl, cd, cm, lesp, re_le,cn=ldvm_instance.step()
-        cl_history.append(cl)
-        cd_history.append(cd)
-        cm_history.append(cm)  # Assuming cm is not calculated in this example
+        for i in range(ppp-1):
+            #print(ldvm_instance.alpha[:i]*180/cp.pi)
+            print(ldvm_instance.i_step)
+            cl, cd, cm, lesp, re_le,cn=ldvm_instance.step()
+            cl_history.append(cl)
+            cd_history.append(cd)
+            cm_history.append(cm)  # Assuming cm is not calculated in this example
 
 
-    #ldvm_instance.make_ldvm_animation(add_reference=True)
-    t_end = time.time()
-    print('Total time for {} steps:'.format(ldvm_instance.i_step), t_end - t_start, 'seconds')
+        #ldvm_instance.make_ldvm_animation(add_reference=True)
+        t_end = time.time()
+        print('Total time for {} steps:'.format(ldvm_instance.i_step), t_end - t_start, 'seconds')
+    end.record()
     
-    data_loads=np.column_stack((ldvm_instance.time[2:ldvm_instance.i_step+1],ldvm_instance.bound_circ_save[1:],cl_history[1:],cd_history[1:], cm_history[1:]))
-    np.savetxt('data_base/force_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp), data_loads, header='time bound_circ lift drag moment', fmt='%f %f %f %f %f')
+    print("Total time for {} steps:".format(ldvm_instance.i_step), end.time_since(start) / 1000, 'seconds')
 
-    data=np.loadtxt('../LDVM_v2_original.5/data_base/force_data_alpha_0_{}_h0_{}_k_{:.1f}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp),skiprows=1)
+    dd
+    data_loads=cp.column_stack((ldvm_instance.time[2:ldvm_instance.i_step+1],ldvm_instance.bound_circ_save[1:],cl_history[1:],cd_history[1:], cm_history[1:]))
+    cp.savetxt('data_base/force_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/cp.pi,h0,k,phi,ppp), data_loads, header='time bound_circ lift drag moment', fmt='%f %f %f %f %f')
 
+    data=cp.loadtxt('../LDVM_v2_original.5/force_data_alpha_0_{}_h0_{}_k_{:.1f}_phi_{}_ppp_{}.dat'.format(alpha0*180/cp.pi,h0,k,phi,ppp),skiprows=1)
+
+    print(data_loads.shape)
     gamma_lit=data[:,4]
     cl_lit=data[:,8]
     fig, ax = plt.subplots(tight_layout=True)
     
-    ax.plot(ldvm_instance.time,ldvm_instance.alpha*180/np.pi,'r-',label='my LDVM',markersize=2)
+    ax.plot(ldvm_instance.time,ldvm_instance.alpha*180/cp.pi,'r-',label='my LDVM',markersize=2)
     ax.set_xlabel('time')
     ax.set_ylabel('angle of attack (deg)')
     ax2 = ax.twinx()
