@@ -101,7 +101,7 @@ pi=acos(-1.)
 eps=10e-6     !Tolerance or iteration
 iter_max=100  !Max. iterations
 v_core=0.02   !Non-dimensional core radius of point vortices 
-n_div=140     !No. of divisions along chord on airfoil
+n_div=70     !No. of divisions along chord on airfoil
 n_aterm=45    !Number of fourier terms used to compute vorticity at a location on chord  
 del_dist=5
 

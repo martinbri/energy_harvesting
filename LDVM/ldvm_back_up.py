@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy as scp
 import pandas
-#from scipy.integrate import trapezoid
+from scipy.integrate import trapezoid
 import time
 import matplotlib.colorbar as cbar
 from matplotlib.animation import FuncAnimation
@@ -131,7 +131,7 @@ class ldvm:
 
     def make_traz_int(self,n_div):
         W=np.ones((n_div, 3))  # Initialize W with ones
-    def calc_camber_slope(self, plot=True):
+    def calc_camber_slope(self, plot=False):
         from scipy.interpolate import CubicSpline
         #Constructing camber slope from airfoil file
         if self.foil_name== 'flate_plate':
@@ -570,17 +570,18 @@ class ldvm:
         
         
         self.u=self.u_ref*np.ones_like(self.time)
-        # data_save=np.array([self.time*ldvm_instance.chord/self.u_ref, self.alpha*180/np.pi, self.h/ldvm_instance.chord, np.ones(ppp)]).T
-    
+        data_save=np.array([self.time*self.chord/self.u_ref, self.alpha*180/np.pi, self.h/self.chord, np.ones(ppp)]).T
+        # print(data_save)
         # np.savetxt('motion_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp), data_save)
+        # ff
         # print("omega = {}, period = {}, dt = {}".format(omega, period, self.dt))
        
     def step(self):
 
         # Perform a single step of the computation
         self.i_step+=1
-        if self.i_step%100 ==0 :
-            print("Step: {}, number of lev {}, number of tev {}, time {},tmax ={}".format(self.i_step, self.n_lev, self.n_tev,self.time[self.i_step],self.time[-1]))
+        # if self.i_step%1000 ==0 :
+        #     print("Step: {}, number of lev {}, number of tev {}, time {},tmax ={}".format(self.i_step, self.n_lev, self.n_tev,self.time[self.i_step],self.time[-1]))
         #Calculate bound vortex positions at this time step
         self.dist_wind=self.dist_wind+(self.u[self.i_step-1]*(self.time[self.i_step]-self.
         time[self.i_step-1]))
@@ -840,13 +841,20 @@ if __name__ == "__main__":
     ldvm_instance = ldvm(config)
     
     
-
-    
-    
-    k=0.05
-    alpha0=50*np.pi/180
-    h0=0.1
-    phi=0.0
+    #1.23518463  0.79142985 -1.46978111  1.69777453
+    #[0.58292331 0.75559468 0.98962615 0.38373175
+    a=[1.99368069,  0.75204751, -2.75259722,  1.18676272]
+    a=[0.97261823, 0.67152885, 1.20500712, 0.54600165]
+    a=[0.94347952, 0.43929832, 2.76788972, 0.06695997]
+    a=[0.89093309, 0.65220004, 0.96688769, 0.45459513]
+    a=[ 0.99331597, -0.43568051,  0.99158617, -0.63378655]
+    a=[ 0.3707096 , -0.26096754, -0.04431886, -0.35439685]
+    a=[ 0.42270996,  1.19806915,  0.38464972, -0.48963669]
+    a=[ 0.89268608, -0.44271798,  0.49993434, -1.07366876]
+    k=a[0 ]#0.3#0.05
+    alpha0=a[1]#0.75559468 #50*np.pi/180
+    h0=a[2] #0.1
+    phi=a[3]#0.38373175 #0.
     omega=2*ldvm_instance.u_ref*k/ldvm_instance.chord
     period=2*np.pi/omega
     D=period*ldvm_instance.u_ref
@@ -874,7 +882,8 @@ if __name__ == "__main__":
         cd_history.append(cd)
         cm_history.append(cm)  # Assuming cm is not calculated in this example
 
-
+    thrust= trapezoid(cd_history,dx=period/ppp)
+    print('drag =', thrust)
     #ldvm_instance.make_ldvm_animation(add_reference=True)
     t_end = time.time()
     print('Total time for {} steps:'.format(ldvm_instance.i_step), t_end - t_start, 'seconds')
@@ -882,7 +891,7 @@ if __name__ == "__main__":
     data_loads=np.column_stack((ldvm_instance.time[2:ldvm_instance.i_step+1],ldvm_instance.bound_circ_save[1:],cl_history[1:],cd_history[1:], cm_history[1:]))
     np.savetxt('data_base/force_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp), data_loads, header='time bound_circ lift drag moment', fmt='%f %f %f %f %f')
 
-    data=np.loadtxt('../LDVM_v2_original.5/data_base/force_data_alpha_0_{}_h0_{}_k_{:.1f}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp),skiprows=1)
+    data=np.loadtxt('../LDVM_v2_original.5/data_base/force_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp),skiprows=1)
 
     gamma_lit=data[:,4]
     cl_lit=data[:,8]

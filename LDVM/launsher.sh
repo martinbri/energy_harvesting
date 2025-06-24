@@ -1,14 +1,14 @@
 #!/bin/bash                                                                                                                                                                                                        
                                                                                                                                                                                                                    
-#SBATCH -J LDVM_data_baze
+#SBATCH -J optm_cma
 
 # SBATCH -N 1
 # SBATCH --ntasks-per-node=1
 
 #SBATCH -n 1
-#SBATCH --ntasks-per-core=1
-#SBATCH --cpus-per-task=2
-#SBATCH --time=10:00:00
+#SBATCH --ntasks-per-core=24
+#SBATCH --cpus-per-task=1
+#SBATCH --time=24:00:00
 
 #SBATCH --partition=short
 
@@ -20,8 +20,8 @@
 
 
 
-module python
+module load python
 source activate flutter_env
-python ldvm_back_up.py
+python optim.py
 
 
