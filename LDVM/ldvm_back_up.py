@@ -41,6 +41,7 @@ class ldvm:
             self.force_file_name=config['force_file_name']
             self.flow_file_name=config['flow_file_name']
             self.n_pts_flow=config['n_pts_flow']
+            self.rho=config['rho']
         else:
             self.u_ref=np.float64(1.0)
             self.chord=np.float64(1.0)
@@ -810,6 +811,29 @@ class ldvm:
         ani = FuncAnimation(fig, update, frames=499, init_func=init, blit=True)
         ani.save('ldvm_animation.mp4', writer='ffmpeg', fps=20)
         #plt.show()
+        
+    def compute_thrust_efficiency(self,cl,cd,cm,k):
+        # Compute thrust and efficiency
+            
+        omega=2*self.u_ref*k/self.chord
+        period=2*np.pi/omega
+                
+            
+        drag= np.array(cd_history[3:]) * self.rho * self.u_ref**2 * self.chord / 2
+        lift = np.array(cl_history[3:]) * self.rho * self.u_ref**2 * self.chord / 2
+        moment = np.array(cm_history[3:])*1/2 * self.rho * self.u_ref**2 * self.chord**2
+    
+        input_power= 1/period*trapezoid(np.abs(lift * self.hdot[4:]) +np.abs(moment * self.alphadot[4:]),dx=period/ppp)
+        propulsion_force = 1/period*trapezoid(-drag, dx=period/ppp) 
+            
+        print('input power =', input_power)
+        print('propulsion force =', propulsion_force)  
+        
+        
+            
+            
+        eta= propulsion_force*ldvm_instance.u_ref/input_power
+        return eta
 
 
 
@@ -851,6 +875,13 @@ if __name__ == "__main__":
     a=[ 0.3707096 , -0.26096754, -0.04431886, -0.35439685]
     a=[ 0.42270996,  1.19806915,  0.38464972, -0.48963669]
     a=[ 0.89268608, -0.44271798,  0.49993434, -1.07366876]
+    a=[ 0.15918461,  1.21793932,  0.08393507, -0.62190884]
+    a=[ 0.5918461,  1.21793932,  0.08393507, -0]
+    a=[ 0.96568032, -0.21449621,  0.4993959,   0.45835996]
+    a=[ 5.22588681e-01, -8.39874544e-02, -3.74972611e-01, -1.75648481e-04]
+    a=[ 6.20782931e-01,  1.09223340e-01, -3.70882902e-01, -2.77944469e-04]
+    a= [ 0.25946782, -0.23134507,  0.4999472,  -1.81682425,]
+    a=[ 0.10681548, -0.15764927,  0.75057282, -1.67788348]
     k=a[0 ]#0.3#0.05
     alpha0=a[1]#0.75559468 #50*np.pi/180
     h0=a[2] #0.1
@@ -881,20 +912,25 @@ if __name__ == "__main__":
         cl_history.append(cl)
         cd_history.append(cd)
         cm_history.append(cm)  # Assuming cm is not calculated in this example
+        
+    eta= ldvm_instance.compute_thrust_efficiency(np.array(cl_history), np.array(cd_history), np.array(cm_history), k)
 
-    thrust= trapezoid(cd_history,dx=period/ppp)
-    print('drag =', thrust)
+    print('eta =', eta)
+    print('Number of LEV:', ldvm_instance.n_lev)
+    print('Number of TEV:', ldvm_instance.n_tev)
+    
     #ldvm_instance.make_ldvm_animation(add_reference=True)
     t_end = time.time()
     print('Total time for {} steps:'.format(ldvm_instance.i_step), t_end - t_start, 'seconds')
     
+    
     data_loads=np.column_stack((ldvm_instance.time[2:ldvm_instance.i_step+1],ldvm_instance.bound_circ_save[1:],cl_history[1:],cd_history[1:], cm_history[1:]))
     np.savetxt('data_base/force_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp), data_loads, header='time bound_circ lift drag moment', fmt='%f %f %f %f %f')
 
-    data=np.loadtxt('../LDVM_v2_original.5/data_base/force_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp),skiprows=1)
+    #data=np.loadtxt('../LDVM_v2_original.5/data_base/force_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp),skiprows=1)
 
-    gamma_lit=data[:,4]
-    cl_lit=data[:,8]
+    #gamma_lit=data[:,4]
+    #cl_lit=data[:,8]
     fig, ax = plt.subplots(tight_layout=True)
     
     ax.plot(ldvm_instance.time,ldvm_instance.alpha*180/np.pi,'r-',label='my LDVM',markersize=2)
@@ -907,41 +943,62 @@ if __name__ == "__main__":
     plt.figure()
     plt.plot(ldvm_instance.time[1:ldvm_instance.i_step+1],ldvm_instance.bound_circ_save,'r-',label='my LDVM',markersize=2)
 
-    plt.plot(data[:,0],gamma_lit,'b--',label='literature',markersize=2)
+    #plt.plot(data[:,0],gamma_lit,'b--',label='literature',markersize=2)
     plt.xlabel('time')
     plt.ylabel('bound circulation')
     plt.legend()
     plt.savefig('bound_circ.png', dpi=300)
     plt.figure()
 
-    plt.plot(ldvm_instance.time[2:ldvm_instance.i_step+1],cl_history[1:],'r-',label='my LDVM',markersize=2)
-    plt.plot(data[:,0],cl_lit,'b--',label='literature',markersize=2)
+    plt.plot(ldvm_instance.time[5:ldvm_instance.i_step+1],cl_history[4:],'r-',label='my LDVM',markersize=2)
+    #plt.plot(data[:,0],cl_lit,'b--',label='literature',markersize=2)
     plt.xlabel('time')
     plt.ylabel('lift')
     plt.legend()
     plt.savefig('lift.png', dpi=300)
 
     plt.figure()
-    plt.plot(ldvm_instance.time[2:ldvm_instance.i_step+1],cd_history[1:],'r-',label='my LDVM',markersize=2)
-    plt.plot(data[:,0],data[:,9],'b--',label='literature',markersize=2)
+    plt.plot(ldvm_instance.time[5:ldvm_instance.i_step+1],cd_history[4:],'r-',label='my LDVM',markersize=2)
+    #plt.plot(data[:,0],data[:,9],'b--',label='literature',markersize=2)
     plt.xlabel('time')
     plt.ylabel('drag')
     plt.legend()
     plt.savefig('drag.png', dpi=300)
     plt.figure()
-    plt.plot(ldvm_instance.time[2:ldvm_instance.i_step+1],cm_history[1:],'r-',label='my LDVM',markersize=2)
-    plt.plot(data[:,0],data[:,10],'b--',label='literature',markersize=2)
+    plt.plot(ldvm_instance.time[5:ldvm_instance.i_step+1],cm_history[4:],'r-',label='my LDVM',markersize=2)
+    #plt.plot(data[:,0],data[:,10],'b--',label='literature',markersize=2)
     plt.xlabel('time')
     plt.ylabel('moment')
     plt.legend()
     plt.savefig('moment.png', dpi=300)
     plt.show()
 
+    plt.figure()
+    plt.scatter(ldvm_instance.time[5:ldvm_instance.i_step+1],cl_history[4:]*ldvm_instance.hdot[5:])
+    plt.xlabel('time')
+    plt.ylabel('power lift * velocity')
+    plt.legend()
+    plt.savefig('power_lift.png', dpi=300)
+    plt.figure()
+    
+    plt.figure()    
+    plt.scatter(ldvm_instance.time[5:ldvm_instance.i_step+1],cm_history[4:]*ldvm_instance.alphadot[5:])
+    plt.xlabel('time')
+    plt.ylabel('power moment * velocity')
+    plt.legend()
+    plt.savefig('power_moment.png', dpi=300)
+    
 
 
-
-
-
+    fig, ax = plt.subplots(tight_layout=True)
+    
+    ax.plot(ldvm_instance.time,ldvm_instance.alphadot*180/np.pi,'r-',label='my LDVM',markersize=2)
+    ax.set_xlabel('time')
+    ax.set_ylabel('angle of attack derivatice (deg)')
+    ax2 = ax.twinx()
+    ax2.plot(ldvm_instance.time, ldvm_instance.hdot, 'b--', label='Height', markersize=2)
+    ax2.set_ylabel('Height derivative (m)')
+    fig.savefig('angle_height_derivatives.png', dpi=300)
 
 
 

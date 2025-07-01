@@ -1,0 +1,2 @@
+% # columns="iteration, evaluation, sigma, axis ratio, bestever, best, median, worst objective function value, interquartile range, further/more values", seed=42, Mon Jun 30 14:22:24 2025, <python>{}</python>
+1 24 0.5891438502548884 1.0000375007031337 0.4529863639508481 4.5298636395084813e-01 1000000.0 1000000.0 0.0   

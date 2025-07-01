@@ -17,7 +17,7 @@ def evaluate(x):
     """
     ldvm_instance = ldvm(config)
     time_deb= time.time()
-    print(f"[PID {os.getpid()}] évalue {x}")
+    # print(f"[PID {os.getpid()}] évalue {x}")
     
 
     
@@ -25,6 +25,13 @@ def evaluate(x):
     omega=2*ldvm_instance.u_ref*k/ldvm_instance.chord
     period=2*np.pi/omega
     D=period*ldvm_instance.u_ref
+    
+    
+    Xhi=alpha0/np.arctan(h0*omega/ldvm_instance.u_ref)
+    
+    if np.abs(Xhi) >=1:
+        print("Xhi >= 1, entering extraction mode...skipping evaluation")
+        return 1e6
     
     d_wake=1./ldvm_instance.n_div*ldvm_instance.chord
 
@@ -42,17 +49,32 @@ def evaluate(x):
         cd_history.append(cd)
         cm_history.append(cm)
     cd_history = np.array(cd_history)
-        
-    thrust=trapezoid(cd_history,dx=period/ppp)
-    # thrust = 0
-    # for i in range(len(cl_history) - 1):
-    #     thrust += 0.5 * (cl_history[i] + cl_history[i + 1]) * (period / ppp)
     
-    # print('Thrust:', thrust)
-    print("Evaluation terminée pour x =", x, "-> Thrust:", thrust, "Temps écoulé:", time.time() - time_deb)
+    drag= np.array(cd_history[3:]) * ldvm_instance.rho * ldvm_instance.u_ref**2 * ldvm_instance.chord / 2
+    lift = np.array(cl_history[3:]) * ldvm_instance.rho * ldvm_instance.u_ref**2 * ldvm_instance.chord / 2
+    moment = np.array(cm_history[3:])*1/2 * ldvm_instance.rho * ldvm_instance.u_ref**2 * ldvm_instance.chord**2
+    
+    input_power= 1/period*trapezoid(np.abs(lift * ldvm_instance.hdot[4:]) +np.abs(moment * ldvm_instance.alphadot[4:]),dx=period/ppp)
+    propulsion_force = 1/period*trapezoid(-drag, dx=period/ppp)   
+    
 
     
-    return thrust
+    print("Thrust contribution", trapezoid(-drag* ldvm_instance.u_ref, dx=period/ppp))
+    print("Lift contribution", -trapezoid(lift * ldvm_instance.hdot[4:], dx=period/ppp))
+    print("Moment contribution", -trapezoid(moment * ldvm_instance.alphadot[4:], dx=period/ppp))
+    print('Xhi:', Xhi)
+    
+    
+    eta= propulsion_force*ldvm_instance.u_ref#:/input_power
+
+    print("Evaluation terminée pour x =", x, "-> eta:", eta, "Temps écoulé:", time.time() - time_deb)
+    
+    # if propulsion_force <0 :
+    #     print("Propulsion force < 0, returning a high penalty value")
+    #     return 1e6
+
+    
+    return -eta
 
 if __name__ == "__main__":
     # Example usage
@@ -80,13 +102,14 @@ if __name__ == "__main__":
     x0[3] = 0.0  # phi
     
     
-
-    lower_bounds = [0.1, -70 * np.pi / 180, -0.5 , -np.pi]
-    upper_bounds = [1,70* np.pi / 180,  0.5 , np.pi]
+    lower_bounds = [0.1, -70 * np.pi / 180, -5.0 , -np.pi]
+    upper_bounds = [5.0,70*np.pi / 180,  5.0 , np.pi]
     sigma0=0.5
     popsize=24
     timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
     log_dir = f'./logs/cma_run_{timestamp}/'
+    results_dir = f'./results/cma_run_{timestamp}/'
+    os.makedirs(results_dir, exist_ok=True)
     os.makedirs(log_dir, exist_ok=True)
     opts = {
     'bounds': [lower_bounds, upper_bounds],
@@ -99,10 +122,11 @@ if __name__ == "__main__":
     eval_count = 0  # Variable globale
     es = cma.CMAEvolutionStrategy(x0, sigma0, opts)
     
-   
+    data=np.zeros((opts['maxiter'],popsize, len(upper_bounds)+1))  
     
     #with multiprocessing.Pool() as pool:
     #with multiprocessing.Pool(processes=4) as pool:
+    index=0
     if True:    
         while not es.stop():
             solutions = es.ask()
@@ -119,6 +143,15 @@ if __name__ == "__main__":
             es.disp()
             print('Print best somutions',es.result.xbest)
             print("🎯 Valeur minimale :", evaluate(es.result.xbest))
+            print("📊 Enregistrement des résultats...")
+            print('solution',solutions,len(solutions))
+            
+            data[index, :, :-1] = solutions
+            data[index, :, -1] = fitnesses
+            
+            np.save(os.path.join(results_dir, f'results.npy'), data)
+            print("📂 Résultats enregistrés dans", results_dir)
+            index +=1
 
     print("✅ Solution trouvée :", es.result.xbest)
     print("🎯 Valeur minimale :", evaluate(es.result.xbest))
