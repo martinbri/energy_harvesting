@@ -73,8 +73,8 @@ double precision, dimension(100000) :: t, alpha, h, u, alphadot, hdot
 double precision, dimension(300) :: x, theta, cam, cam_slope, gamma
 double precision :: dtheta, xreq
 double precision, dimension(1000) :: recalib, lespcalib, lesp_splined
-double precision, dimension(0:50) :: aterm,aterm_prev
-double precision, dimension(0:3) ::  adot
+double precision, dimension(0:50) :: aterm
+double precision, dimension(0:3) :: aterm_prev, adot
 double precision, dimension(300,3) :: bound, bound_int
 double precision, dimension(0:100) :: tev_iter, lev_iter, kelv, kutta
 double precision, dimension(expect_vort,3) :: tev, lev
@@ -138,7 +138,6 @@ read(3,*)motion_filename
 read(3,*)force_filename
 read(3,*)flow_filename, n_pts_flow
 
-
 !Open output files
 if (flow_filename .ne. 'nil') then
    open(unit=13, file=flow_filename, status='replace')
@@ -177,11 +176,7 @@ end do
 !Determine camberslope on airfoil from airfoil input file
 cam_slope(1:n_div)=0
 cam(1:n_div)=0
-
-
 call calc_camberslope
-
-
 
 !Calculating derivatives (Backward differentiation)
 do i_step=2,n_step
@@ -190,8 +185,6 @@ do i_step=2,n_step
 end do
 alphadot(1)=alphadot(2)
 hdot(1)=hdot(2)
-
-write(*,*)'passing line194'
 
 !Initial conditions
 n_lev=0

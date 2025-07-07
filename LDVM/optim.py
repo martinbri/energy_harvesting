@@ -65,7 +65,7 @@ def evaluate(x):
     print('Xhi:', Xhi)
     
     
-    eta= propulsion_force*ldvm_instance.u_ref#:/input_power
+    eta= propulsion_force*ldvm_instance.u_ref/input_power
 
     print("Evaluation terminée pour x =", x, "-> eta:", eta, "Temps écoulé:", time.time() - time_deb)
     
@@ -102,8 +102,8 @@ if __name__ == "__main__":
     x0[3] = 0.0  # phi
     
     
-    lower_bounds = [0.1, -70 * np.pi / 180, -5.0 , -np.pi]
-    upper_bounds = [5.0,70*np.pi / 180,  5.0 , np.pi]
+    lower_bounds = [0.3, -70 * np.pi / 180, -0.5 , -np.pi]
+    upper_bounds = [5.0,70*np.pi / 180,  0.5 , np.pi]
     sigma0=0.5
     popsize=24
     timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')

@@ -5,8 +5,8 @@
 naca0015_airfoil.dat			        !Airfoil File
 1100						!Reference Reynolds number
 0.19                     ! Critical LESP
-motion_data_alpha_0_-25.365871768557188_h0_0.49993434_k_0.89268608_phi_-1.07366876_ppp_246.dat  !  Input motion Filename
-force_data_alpha_0_-25.365871768557188_h0_0.49993434_k_0.89268608_phi_-1.07366876_ppp_246.dat	!Force Output filename
+motion_data_alpha_0_14.999999999999998_h0_0.75_k_1.03_phi_1.5707963267948966_ppp_213.dat  !  Input motion Filename
+force_data_alpha_0_14.999999999999998_h0_0.75_k_1.03_phi_1.5707963267948966_ppp_213.dat	!Force Output filename
 flow_pr_amp45_k0.2_le.dat				1		!Flow Output Filename, Output frequency
 
 

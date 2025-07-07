@@ -33,6 +33,7 @@ class ldvm:
             self.pvt=np.float64(config['pvt'])
             self.n_div=np.int64(config['n_div'])
             self.cm_pvt=np.float64(config['cm_pvt'])
+        
             self.foil_name=config['foil_name']
             self.re_ref=np.float64(config['re_ref'])
             self.lesp_crit=np.float64(config['lesp_crit'])
@@ -71,6 +72,7 @@ class ldvm:
 
 
     def load_motion(self):
+        ff
 
         # Load motion data from file
         try:
@@ -572,8 +574,8 @@ class ldvm:
         
         self.u=self.u_ref*np.ones_like(self.time)
         data_save=np.array([self.time*self.chord/self.u_ref, self.alpha*180/np.pi, self.h/self.chord, np.ones(ppp)]).T
-        # print(data_save)
-        # np.savetxt('motion_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp), data_save)
+        #print(data_save)
+        np.savetxt('motion_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp), data_save)
         # ff
         # print("omega = {}, period = {}, dt = {}".format(omega, period, self.dt))
        
@@ -812,28 +814,34 @@ class ldvm:
         ani.save('ldvm_animation.mp4', writer='ffmpeg', fps=20)
         #plt.show()
         
-    def compute_thrust_efficiency(self,cl,cd,cm,k):
+    def compute_thrust_efficiency(self,cl,cd,cm,k,ppp):
         # Compute thrust and efficiency
             
         omega=2*self.u_ref*k/self.chord
         period=2*np.pi/omega
                 
             
-        drag= np.array(cd_history[3:]) * self.rho * self.u_ref**2 * self.chord / 2
-        lift = np.array(cl_history[3:]) * self.rho * self.u_ref**2 * self.chord / 2
-        moment = np.array(cm_history[3:])*1/2 * self.rho * self.u_ref**2 * self.chord**2
+        drag= cd * self.rho * self.u_ref**2 * self.chord / 2
+        lift = cl* self.rho * self.u_ref**2 * self.chord / 2
+        moment = cm*1/2 * self.rho * self.u_ref**2 * self.chord**2
     
-        input_power= 1/period*trapezoid(np.abs(lift * self.hdot[4:]) +np.abs(moment * self.alphadot[4:]),dx=period/ppp)
+        input_power= 1/period*trapezoid(-(lift * self.hdot[1:]) +(moment * self.alphadot[1:]),dx=period/ppp)
         propulsion_force = 1/period*trapezoid(-drag, dx=period/ppp) 
-            
+        
+        ct= propulsion_force / (0.5 * self.rho * self.u_ref**2 * self.chord)
+        cp = input_power / (0.5 * self.rho * self.u_ref**3 * self.chord)
+        
+        print('lift power',1/period*trapezoid(lift * self.hdot[1:] ,dx=period/ppp))
+        print('moment power',1/period*trapezoid(moment * self.alphadot[1:],dx=period/ppp))
         print('input power =', input_power)
         print('propulsion force =', propulsion_force)  
+        print( 'u_ref =', self.u_ref)
         
         
             
             
-        eta= propulsion_force*ldvm_instance.u_ref/input_power
-        return eta
+        eta= propulsion_force*self.u_ref/input_power
+        return eta,ct,cp
 
 
 
@@ -848,8 +856,8 @@ if __name__ == "__main__":
     config = {
         'u_ref': 1.0,
         'chord': 1.0,
-        'pvt': 0.25,
-        'cm_pvt': 0.25,
+        'pvt': 0.33,
+        'cm_pvt': 0.33,
         'foil_name': 'naca0015_airfoil.dat',
         're_ref': 1100,
         'lesp_crit':0.19,
@@ -882,6 +890,11 @@ if __name__ == "__main__":
     a=[ 6.20782931e-01,  1.09223340e-01, -3.70882902e-01, -2.77944469e-04]
     a= [ 0.25946782, -0.23134507,  0.4999472,  -1.81682425,]
     a=[ 0.10681548, -0.15764927,  0.75057282, -1.67788348]
+    
+    St=0.3
+    a=[1.03, 15*np.pi/180, 0.75, 75*np.pi/180] #0.3, 0.75559468, 0.98962615, 0.38373175
+    
+    
     k=a[0 ]#0.3#0.05
     alpha0=a[1]#0.75559468 #50*np.pi/180
     h0=a[2] #0.1
@@ -913,11 +926,13 @@ if __name__ == "__main__":
         cd_history.append(cd)
         cm_history.append(cm)  # Assuming cm is not calculated in this example
         
-    eta= ldvm_instance.compute_thrust_efficiency(np.array(cl_history), np.array(cd_history), np.array(cm_history), k)
+    eta,ct,cp= ldvm_instance.compute_thrust_efficiency(np.array(cl_history), np.array(cd_history), np.array(cm_history), k, ppp)
 
     print('eta =', eta)
-    print('Number of LEV:', ldvm_instance.n_lev)
-    print('Number of TEV:', ldvm_instance.n_tev)
+    print('ct =', ct)
+    print('cp =', cp)
+    
+    print('N_LEV =', ldvm_instance.n_lev)
     
     #ldvm_instance.make_ldvm_animation(add_reference=True)
     t_end = time.time()
@@ -929,8 +944,8 @@ if __name__ == "__main__":
 
     #data=np.loadtxt('../LDVM_v2_original.5/data_base/force_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp),skiprows=1)
 
-    #gamma_lit=data[:,4]
-    #cl_lit=data[:,8]
+    # gamma_lit=data[:,4]
+    # cl_lit=data[:,8]
     fig, ax = plt.subplots(tight_layout=True)
     
     ax.plot(ldvm_instance.time,ldvm_instance.alpha*180/np.pi,'r-',label='my LDVM',markersize=2)
@@ -950,7 +965,7 @@ if __name__ == "__main__":
     plt.savefig('bound_circ.png', dpi=300)
     plt.figure()
 
-    plt.plot(ldvm_instance.time[5:ldvm_instance.i_step+1],cl_history[4:],'r-',label='my LDVM',markersize=2)
+    plt.plot(ldvm_instance.time[2:ldvm_instance.i_step+1],cl_history[1:],'r-',label='my LDVM',markersize=2)
     #plt.plot(data[:,0],cl_lit,'b--',label='literature',markersize=2)
     plt.xlabel('time')
     plt.ylabel('lift')
@@ -958,14 +973,14 @@ if __name__ == "__main__":
     plt.savefig('lift.png', dpi=300)
 
     plt.figure()
-    plt.plot(ldvm_instance.time[5:ldvm_instance.i_step+1],cd_history[4:],'r-',label='my LDVM',markersize=2)
+    plt.plot(ldvm_instance.time[2:ldvm_instance.i_step+1],cd_history[1:],'r-',label='my LDVM',markersize=2)
     #plt.plot(data[:,0],data[:,9],'b--',label='literature',markersize=2)
     plt.xlabel('time')
     plt.ylabel('drag')
     plt.legend()
     plt.savefig('drag.png', dpi=300)
     plt.figure()
-    plt.plot(ldvm_instance.time[5:ldvm_instance.i_step+1],cm_history[4:],'r-',label='my LDVM',markersize=2)
+    plt.plot(ldvm_instance.time[2:ldvm_instance.i_step+1],cm_history[1:],'r-',label='my LDVM',markersize=2)
     #plt.plot(data[:,0],data[:,10],'b--',label='literature',markersize=2)
     plt.xlabel('time')
     plt.ylabel('moment')
