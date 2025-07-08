@@ -81,8 +81,8 @@ if __name__ == "__main__":
     config = {
         'u_ref': 1.0,
         'chord': 1.0,
-        'pvt': 0.25,
-        'cm_pvt': 0.25,
+        'pvt': 0.33,
+        'cm_pvt': 0.33,
         'foil_name': 'naca0015_airfoil.dat',
         're_ref': 1100,
         'lesp_crit':0.19,
