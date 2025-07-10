@@ -575,7 +575,7 @@ class ldvm:
         self.u=self.u_ref*np.ones_like(self.time)
         data_save=np.array([self.time*self.chord/self.u_ref, self.alpha*180/np.pi, self.h/self.chord, np.ones(ppp)]).T
         #print(data_save)
-        np.savetxt('motion_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp), data_save)
+        #np.savetxt('motion_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp), data_save)
         # ff
         # print("omega = {}, period = {}, dt = {}".format(omega, period, self.dt))
        
@@ -825,7 +825,7 @@ class ldvm:
         lift = cl* self.rho * self.u_ref**2 * self.chord / 2
         moment = cm*1/2 * self.rho * self.u_ref**2 * self.chord**2
     
-        input_power= 1/period*trapezoid(-(lift * self.hdot[1:]) +(moment * self.alphadot[1:]),dx=period/ppp)
+        input_power= 1/period*trapezoid(np.abs(lift * self.hdot[1:]) +np.abs(moment * self.alphadot[1:]),dx=period/ppp)
         propulsion_force = 1/period*trapezoid(-drag, dx=period/ppp) 
         
         ct= propulsion_force / (0.5 * self.rho * self.u_ref**2 * self.chord)
@@ -890,9 +890,13 @@ if __name__ == "__main__":
     a=[ 6.20782931e-01,  1.09223340e-01, -3.70882902e-01, -2.77944469e-04]
     a= [ 0.25946782, -0.23134507,  0.4999472,  -1.81682425,]
     a=[ 0.10681548, -0.15764927,  0.75057282, -1.67788348]
+    a=[0.1700323,  0.87233455, 3.97081425, 1.58784806]
+    
+    
+    
     
     St=0.3
-    a=[2.1, 15*np.pi/180, 0.25, 90*np.pi/180] #0.3, 0.75559468, 0.98962615, 0.38373175
+    #a=[2.1, 15*np.pi/180, 0.25, 90*np.pi/180] #0.3, 0.75559468, 0.98962615, 0.38373175
     
     
     k=a[0 ]#0.3#0.05
