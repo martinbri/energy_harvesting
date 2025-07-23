@@ -6,6 +6,7 @@ from scipy.integrate import trapezoid
 import time
 import matplotlib.colorbar as cbar
 from matplotlib.animation import FuncAnimation
+from scipy.special import hankel2
 from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable
 from multiprocessing import Pool, cpu_count
@@ -33,7 +34,7 @@ class ldvm:
             self.pvt=np.float64(config['pvt'])
             self.n_div=np.int64(config['n_div'])
             self.cm_pvt=np.float64(config['cm_pvt'])
-        
+
             self.foil_name=config['foil_name']
             self.re_ref=np.float64(config['re_ref'])
             self.lesp_crit=np.float64(config['lesp_crit'])
@@ -62,7 +63,7 @@ class ldvm:
         self.dtheta=np.pi/(self.n_div-1)
         self.theta = np.linspace(0, np.pi, self.n_div)
         self.x=(self.chord/2.)*(1-np.cos(self.theta))
-        
+
         self.W_trapz_integration=self.make_trapezoid_integration_matrix(self.n_div)
 
         ##Dimmensionalize parameters
@@ -144,11 +145,11 @@ class ldvm:
         xcoord = data_profile[:, 0]
         ycoord = data_profile[:, 1]
         n_coord = len(xcoord)
-        
+
 
 
         xcoord_sum = np.zeros(n_coord)
-        
+
 
 
         # Compute cumulative distance
@@ -184,17 +185,17 @@ class ldvm:
             plt.legend()
             plt.savefig('camber_slope.png', dpi=300)
             plt.show()
-        
+
         return cam, cam_slope
 
     def calc_downwash_boundcirc(self):
-        
-        
-        
+
+
+
 
         uind=np.zeros((1,self.n_div))
         wind=np.zeros((1,self.n_div))
-        
+
         # Compute wake induced velocity
         x_tev = self.tev[:, 1]               # shape (n_tev,)
         z_tev = self.tev[:, 2]               # shape (n_tev,)
@@ -202,7 +203,7 @@ class ldvm:
         x_bound = self.bound_vortex_pos[:, 1]  # shape (n_bound_vortex_pos,)
         z_bound = self.bound_vortex_pos[:, 2]  # shape (n_bound_vortex_pos,)
         xdist_TEV_Bound = x_tev[:, None] - x_bound[None, :]   # shape (n_tev, n_bound_vortex_pos)
-        zdist_TEV_Bound = z_tev[:, None] - z_bound[None, :]         
+        zdist_TEV_Bound = z_tev[:, None] - z_bound[None, :]
         dist=xdist_TEV_Bound**2+zdist_TEV_Bound**2
         Gamma=(self.tev[:,0]).reshape(1,-1)
 
@@ -240,15 +241,15 @@ class ldvm:
 
         aterm0=self.W_trapz_integration.reshape(1, -1) @ downwash.reshape(-1, 1)*self.dtheta  # Trapezoidal integration for aterm0
         aterm1=self.W_trapz_integration.reshape(1, -1) @ (downwash * np.cos(self.theta)).reshape(-1, 1) * self.dtheta  # Trapezoidal integration for aterm1
-        
+
         aterm0=(-1./(self.u_ref*np.pi))*np.squeeze(aterm0)
         aterm1=(2./(self.u_ref*np.pi))*np.squeeze(aterm1)
         bound_circ=self.u_ref*self.chord*np.pi*(aterm0+(aterm1/2.))
 
-        
-        
-        
-        
+
+
+
+
         return aterm0, aterm1, downwash,bound_circ,uind,wind
 
 
@@ -484,7 +485,7 @@ class ldvm:
         z_lev = self.lev[:, 2]  # (n_lev,)
 
         xdist_TEV_LEV = x_tev[:, None] - x_lev[None, :]  # (n_tev, n_lev)
-        zdist_TEV_LEV = z_tev[:, None] - z_lev[None, :]  
+        zdist_TEV_LEV = z_tev[:, None] - z_lev[None, :]
         dist=xdist_TEV_LEV**2+zdist_TEV_LEV**2
         Gamma=(self.tev[:,0]).reshape(1,-1)
 
@@ -540,45 +541,129 @@ class ldvm:
 
         # Compute nonl_m
         nonl_m = np.sum(induced_velocity * self.x[1:] * bound_int[:, 0])
-        
-        
-        non_l=non_l*(2/(self.u_ref*self.u_ref*self.chord))        
+
+
+        non_l=non_l*(2/(self.u_ref*self.u_ref*self.chord))
         nonl_m=nonl_m*(2/(self.u_ref*self.u_ref*self.chord*self.chord))
-        
-        
-        
+
+
+
         cn=cnc+cnnc+non_l
         cl=cn*np.cos(self.alpha[self.i_step])+cs*np.sin(self.alpha[self.i_step])
         cd=cn*np.sin(self.alpha[self.i_step])-cs*np.cos(self.alpha[self.i_step])
+
+
         cm=cn*self.cm_pvt-(2*np.pi*(((self.u[self.i_step]*np.cos(self.alpha[self.i_step])/self.u_ref)+(self.hdot[self.i_step]*np.sin(self.alpha[self.i_step])/self.u_ref))*((self.aterm[0]/4)+(self.aterm[1]/4)-(self.aterm[2]/8))+(self.chord/self.u_ref)*((7*adot0/16)+(3*adot1/16)+(adot2/16)-(adot3/64))))-nonl_m
 
+
+
         return cl, cd, cm, cn
+    def theodorsen_loads(self,k,alpha0,h0,Phi):
+        b=self.chord/2
+        xcg=self.pvt*self.chord - b
+        a= xcg/b #Non dimensional distance of the center of mass from the leading edge
+        z= -h0*np.exp(1j*2*self.u_ref*k/self.chord*self.time-Phi) #Non dimensional height of the airfoil
+        z_dot= 1j*2*self.u_ref*k/self.chord*z#Non dimensional height derivative of the airfoil
+        z_second= 1j*2*self.u_ref*k/self.chord*z_dot#Non dimensional height second derivative of the airfoil
 
+        alpha=alpha0*np.exp(1j*2*self.u_ref*k/self.chord*self.time)#-5*np.pi/180 #2*uvlm.U_inf*frr/uvlm.cw*t
+        alpha_dot=1j*2*self.u_ref*k/self.chord*alpha
+        alpha_second=1j*2*self.u_ref*k/self.chord*alpha_dot
 
-    def make_parameterized_motions(self,k,h0,alpha0,phi,ppp):
-        # Create a parameterized motion for the airfoil
+        print("a",a)
+        print('pvt', self.pvt)
+        H1 = hankel2(1, k)  # Hankel de 2e espèce, ordre 1
+        H0 = hankel2(0, k)  # Hankel de 2e espèce, ordre 0
+        C=H1 / (H1 + 1j * H0)
+        #Cl=2*np.pi*(alpha+z_dot/self.u_ref+(0.5-a)*alpha_dot*b/self.u_ref)*C+np.pi*(z_second*0.5/self.u_ref**2+alpha_dot*b/self.u_ref-a*alpha_second*(b/self.u_ref)**2)##Cl brunton
+        # lift_theo=self.rho*(b)**2*(self.u_ref*np.pi*self.alphadot+np.pi*-self.h_second-np.pi*b*a*self.alpha_second)+2*np.pi*self.rho*(self.chord/2)*self.u_ref*(self.u_ref*self.alpha-self.hdot+self.chord/2*(0.5-a)*self.alphadot)* C
+
+        # lift_theo=lift_theo.imag
+        # cl= lift_theo/(0.5*self.rho*self.u_ref**2*self.chord)
+        #m_theo=-self.rho*(b)**2*(-a*np.pi*b*-z_second+np.pi*b**2*(1/8+a**2)*alpha_second+np.pi*(0.5-a)*self.u_ref*b*alpha_dot+2*np.pi*self.rho*b**2*(1/2+a)*self.u_ref*(self.u_ref*alpha-z_dot+self.chord/2*(0.5-a)*alpha_dot)* C)
+        #m_theo=m_theo.imag
         
+        term1 = 2 * np.pi * self.rho * self.u_ref * b * (self.u_ref * alpha + z_dot + (0.5 - a) * b * alpha_dot) * C
+        term2 = self.rho * np.pi * b**2 * (self.u_ref * alpha_dot + z_second - a * b * alpha_second)
+        
+        l = (term1 + term2).imag
+        Cl = l / (0.5 * self.rho * self.u_ref**2 * self.chord)
+        
+        
+        
+        
+        term1 = 2 * np.pi * self.rho * self.u_ref * b**2 * (0.5 + a) * (self.u_ref * alpha + z_dot + (0.5 - a) * b * alpha_dot) * C
+
+        # Second term
+        term2 = self.rho * np.pi * b**3 * (a * z_second - (0.5 - a) * self.u_ref * alpha_dot - (1/8 + a**2) * b * alpha_second)
+        m=(term1 + term2).imag
+        cm= m/(0.5*self.rho*self.u_ref**2*self.chord**2)
+
+        # cp_lift=1/self.period/self.n_period*trapezoid(lift_theo*-self.hdot,dx=period/self.ppp)
+
+
+
+        # cp_lift=cp_lift/(0.5 * self.rho * self.u_ref**3 * self.chord)
+
+
+
+        # cp_mom=1/self.period/self.n_period*trapezoid(m_theo*self.alphadot,dx=period/self.ppp)
+
+
+        # cp_mom=cp_mom/(0.5 * self.rho * self.u_ref**3 * self.chord**2)
+
+        # print('Theodorsen Cp lift',cp_lift)
+        # print('Theodorsen Cp moment',cp_mom)
+        print('C,' , C)
+
+
+        # plt.figure(figsize=(10, 6))
+        # plt.plot(self.time, cl, label='Lift Theodorsen')
+        # plt.savefig('lift_theodorsen.png', dpi=300)
+        return self.time,alpha.imag,z.imag,Cl,cm
+
+    def make_parameterized_motions(self,k,h0,alpha0,phi,save=False,n_period=2):
+        # Create a parameterized motion for the airfoil
+        self.n_period=n_period
+    
+
+    
+
+    
         omega=2*self.u_ref*k/self.chord
         period=2*np.pi/omega
-        self.time=np.linspace(0, period, ppp)
+        D=period*self.u_ref
+        d_wake=1./self.n_div*self.chord
+        ppp=int(D/d_wake)
+        self.period=period
+        self.ppp=ppp
+        print('period', period)
+        self.time=np.linspace(0, n_period*period, n_period*ppp)
+
         self.dt=self.time[1]-self.time[0]
         self.alpha=alpha0*np.sin(omega*self.time)
-        self.h=h0*np.sin(omega*self.time-phi) 
-        
+        self.h=h0*np.sin(omega*self.time-phi)
+
 
 
 
         self.alphadot=omega*alpha0*np.cos(omega*self.time)
         self.hdot=omega*h0*np.cos(omega*self.time-phi)
-        
-        
+
+
+        self.alpha_second=-omega**2*alpha0*np.sin(omega*self.time)
+        self.h_second=-omega**2*h0*np.sin(omega*self.time-phi)
+
+
         self.u=self.u_ref*np.ones_like(self.time)
-        data_save=np.array([self.time*self.chord/self.u_ref, self.alpha*180/np.pi, self.h/self.chord, np.ones(ppp)]).T
-        #print(data_save)
-        #np.savetxt('motion_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp), data_save)
+        
+        print(save)
+        if save:
+            data_save=np.array([self.time*self.chord/self.u_ref, self.alpha*180/np.pi, self.h/self.chord, np.ones(n_period*ppp)]).T
+            np.savetxt('motion_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp), data_save)
         # ff
         # print("omega = {}, period = {}, dt = {}".format(omega, period, self.dt))
-       
+
     def step(self):
 
         # Perform a single step of the computation
@@ -591,13 +676,15 @@ class ldvm:
 
         self.bound_vortex_pos[:,1]=-((self.chord-self.pvt*self.chord)+((self.pvt*self.chord-self.x)*np.cos(self.alpha[self.i_step]))+self.dist_wind) + (self.cam*np.sin(self.alpha[self.i_step]))
         self.bound_vortex_pos[:,2]=self.h[self.i_step]+((self.pvt*self.chord-self.x)*np.sin(self.alpha[self.i_step]))+(self.cam*np.cos(self.alpha[self.i_step]))
+        # print("Step: {}, position profgile {}".format(self.i_step, self.bound_vortex_pos[0,2]))
+        # input('dd')
 
         downwash,aterm0,aterm1,bound_circ,uind,wind=self.one_D_tev_shedding()
 
         #Comupte the fourier terms
 
         self.aterm[2]=self.W_trapz_integration.reshape(1,-1)@(downwash*np.cos(2*self.theta)).reshape(-1,1)*self.dtheta
-        
+
         self.aterm[3]=self.W_trapz_integration.reshape(1,-1)@(downwash*np.cos(3*self.theta)).reshape(-1,1)*self.dtheta
         self.aterm[2]=(2./(self.u_ref*np.pi))*self.aterm[2]
         self.aterm[3]=(2./(self.u_ref*np.pi))*self.aterm[3]
@@ -632,23 +719,23 @@ class ldvm:
         #Calculate fourier terms and bound vorticity
         self.aterm[0] = aterm0
         self.aterm[1] = aterm1
-        self.aterm[2:] = 0.0 
-        
-        
+        self.aterm[2:] = 0.0
+
+
         iaterm=np.arange(2,self.n_aterm).reshape(-1,1)
         cos_=(np.cos(iaterm*self.theta)*downwash[0,:]).T
         self.aterm[2:]=self.W_trapz_integration.reshape(1, -1) @ cos_ * self.dtheta
         self.aterm[2:]=(2./(self.u_ref*np.pi))*self.aterm[2:]
         self.aterm_prev=self.aterm.copy()
-        
-        
-        
-        
-        
+
+
+
+
+
         #Calculate bound_vortex strengths
         gamma = np.zeros(self.n_div)
         gamma+=(self.aterm[0]*(1+np.cos(self.theta)))
-        
+
         for i_aterm in range(1, self.n_aterm):
             gamma+=(self.aterm[i_aterm]*np.sin(i_aterm*self.theta)*np.sin(self.theta))
         bound_int=np.zeros((self.n_div-1,3))
@@ -666,7 +753,7 @@ class ldvm:
 
         self.bound_circ_save.append(bound_circ)
         #Remove TEV and LEV if they are too far away
-        del_dist=10*self.chord
+        del_dist=5*self.chord
 
 
         if (self.tev[0,1]-self.bound_vortex_pos[-1,1])>del_dist:
@@ -810,36 +897,38 @@ class ldvm:
                 bbox=dict(facecolor='white', edgecolor='none', boxstyle='round,pad=0.2'))
             return lev_line, tev_line, bound_vortex_line
 
-        ani = FuncAnimation(fig, update, frames=499, init_func=init, blit=True)
-        ani.save('ldvm_animation.mp4', writer='ffmpeg', fps=20)
+        ani = FuncAnimation(fig, update, frames=299, init_func=init, blit=True)
+        #ani.save('ldvm_animation.mp4', writer='ffmpeg', fps=20)
+        ani.save('ldvm_animation.gif', writer='pillow', fps=20)
         #plt.show()
-        
+   # def theodorsen_loads(self):
     def compute_thrust_efficiency(self,cl,cd,cm,k,ppp):
         # Compute thrust and efficiency
-            
+
         omega=2*self.u_ref*k/self.chord
         period=2*np.pi/omega
-                
-            
-        drag= cd * self.rho * self.u_ref**2 * self.chord / 2
-        lift = cl* self.rho * self.u_ref**2 * self.chord / 2
-        moment = cm*1/2 * self.rho * self.u_ref**2 * self.chord**2
-    
-        input_power= 1/period*trapezoid(np.abs(lift * self.hdot[1:]) +np.abs(moment * self.alphadot[1:]),dx=period/ppp)
-        propulsion_force = 1/period*trapezoid(-drag, dx=period/ppp) 
-        
+
+        print('period =', period)
+
+        drag= cd[-ppp:] * self.rho * self.u_ref**2 * self.chord / 2
+        lift = cl[-ppp:]* self.rho * self.u_ref**2 * self.chord / 2
+        moment = cm[-ppp:]*1/2 * self.rho * self.u_ref**2 * self.chord**2
+
+        input_power= 1/period*trapezoid(-(lift[:] * self.hdot[-ppp:]) +(moment[:] * self.alphadot[-ppp:]),dx=period/ppp)
+        propulsion_force = 1/period*trapezoid(-drag, dx=period/ppp)
+
         ct= propulsion_force / (0.5 * self.rho * self.u_ref**2 * self.chord)
         cp = input_power / (0.5 * self.rho * self.u_ref**3 * self.chord)
-        
-        print('lift power',1/period*trapezoid(lift * self.hdot[1:] ,dx=period/ppp))
-        print('moment power',1/period*trapezoid(moment * self.alphadot[1:],dx=period/ppp))
+
+        print('lift power',1/period/self.n_period*trapezoid(lift * self.hdot[-ppp:] ,dx=period/ppp))
+        print('moment power',1/period/self.n_period*trapezoid(moment * self.alphadot[-ppp:],dx=period/ppp))
         print('input power =', input_power)
-        print('propulsion force =', propulsion_force)  
+        print('propulsion force =', propulsion_force)
         print( 'u_ref =', self.u_ref)
-        
-        
-            
-            
+
+
+
+
         eta= propulsion_force*self.u_ref/input_power
         return eta,ct,cp
 
@@ -856,23 +945,23 @@ if __name__ == "__main__":
     config = {
         'u_ref': 1.0,
         'chord': 1.0,
-        'pvt': 0.33,
-        'cm_pvt': 0.33,
+        'pvt': 0.5,
+        'cm_pvt': 0.5,
         'foil_name': 'naca0015_airfoil.dat',
         're_ref': 1100,
-        'lesp_crit':0.19,
+        'lesp_crit':50,
         'motion_file_name': 'motion_pr_amp45_k0.2.dat',
         'force_file_name': 'force_pr_amp45_k0.2_le.csv',
         'flow_file_name': 'flow.csv',
         'n_pts_flow': 100,
         'rho':1.225,
         'nu': 1.566e-5,
-        'n_div': 70,
+        'n_div': 140,
     }
 
     ldvm_instance = ldvm(config)
-    
-    
+
+
     #1.23518463  0.79142985 -1.46978111  1.69777453
     #[0.58292331 0.75559468 0.98962615 0.38373175
     a=[1.99368069,  0.75204751, -2.75259722,  1.18676272]
@@ -890,14 +979,14 @@ if __name__ == "__main__":
     a=[ 6.20782931e-01,  1.09223340e-01, -3.70882902e-01, -2.77944469e-04]
     a= [ 0.25946782, -0.23134507,  0.4999472,  -1.81682425,]
     a=[ 0.10681548, -0.15764927,  0.75057282, -1.67788348]
-    a=[0.1700323,  0.87233455, 3.97081425, 1.58784806]
-    
-    
-    
-    
-    St=0.3
+    a=[0.4,  5*np.pi/180, 0.0000, 0*np.pi/180]
+
+
+
+
+    #St=0.3
     #a=[2.1, 15*np.pi/180, 0.25, 90*np.pi/180] #0.3, 0.75559468, 0.98962615, 0.38373175
-    
+
     
     k=a[0 ]#0.3#0.05
     alpha0=a[1]#0.75559468 #50*np.pi/180
@@ -906,52 +995,60 @@ if __name__ == "__main__":
     omega=2*ldvm_instance.u_ref*k/ldvm_instance.chord
     period=2*np.pi/omega
     D=period*ldvm_instance.u_ref
-    
+
     d_wake=1./ldvm_instance.n_div*ldvm_instance.chord
 
     ppp=int(D/d_wake)
     #ldvm_instance.load_motion()
-    
-    ldvm_instance.make_parameterized_motions(k=k,alpha0=alpha0,h0=h0,phi=phi,ppp=ppp)
-    
+    n_period=10
+    print('ppp =', ppp)
+
+    ldvm_instance.make_parameterized_motions(k=k,alpha0=alpha0,h0=h0,phi=phi,ppp=ppp,save=False,n_period=n_period)
+
 
     #ldvm_instance.load_motion()
     ldvm_instance.initialize_computation()
-    #ldvm_instance.make_ldvm_animation(add_reference=True,colorscale=True)
+    #ldvm_instance.make_ldvm_animation(add_reference=False,colorscale=True)
 
-    cl_history = []
-    cd_history = []
-    cm_history = []
 
-    for i in range(ppp-1):
+
+
+
+
+    cl_history = [0]
+    cd_history = [0]
+    cm_history = [0]
+    cn_history = [0]
+    alpha_theo,h_theo,cl_theodorsen,cm_theodorsen=ldvm_instance.theodorsen_loads(k,alpha0)
+    for i in range(n_period*ppp-1):
         #print(ldvm_instance.alpha[:i]*180/np.pi)
         cl, cd, cm, lesp, re_le,cn=ldvm_instance.step()
         cl_history.append(cl)
         cd_history.append(cd)
         cm_history.append(cm)  # Assuming cm is not calculated in this example
-        
+        cn_history.append(cn)  # Assuming cn is not calculated in this example
     eta,ct,cp= ldvm_instance.compute_thrust_efficiency(np.array(cl_history), np.array(cd_history), np.array(cm_history), k, ppp)
 
     print('eta =', eta)
     print('ct =', ct)
     print('cp =', cp)
-    
+
     print('N_LEV =', ldvm_instance.n_lev)
-    
+
     #ldvm_instance.make_ldvm_animation(add_reference=True)
     t_end = time.time()
     print('Total time for {} steps:'.format(ldvm_instance.i_step), t_end - t_start, 'seconds')
-    
-    
-    data_loads=np.column_stack((ldvm_instance.time[2:ldvm_instance.i_step+1],ldvm_instance.bound_circ_save[1:],cl_history[1:],cd_history[1:], cm_history[1:]))
-    np.savetxt('data_base/force_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp), data_loads, header='time bound_circ lift drag moment', fmt='%f %f %f %f %f')
+
+
+    #data_loads=np.column_stack((ldvm_instance.time[:ldvm_instance.i_step],ldvm_instance.bound_circ_save[:],cl_history[:],cd_history[:], cm_history[:]))
+    #np.savetxt('data_base/force_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp), data_loads, header='time bound_circ lift drag moment', fmt='%f %f %f %f %f')
 
     #data=np.loadtxt('../LDVM_v2_original.5/data_base/force_data_alpha_0_{}_h0_{}_k_{}_phi_{}_ppp_{}.dat'.format(alpha0*180/np.pi,h0,k,phi,ppp),skiprows=1)
 
     # gamma_lit=data[:,4]
     # cl_lit=data[:,8]
     fig, ax = plt.subplots(tight_layout=True)
-    
+
     ax.plot(ldvm_instance.time,ldvm_instance.alpha*180/np.pi,'r-',label='my LDVM',markersize=2)
     ax.set_xlabel('time')
     ax.set_ylabel('angle of attack (deg)')
@@ -962,55 +1059,103 @@ if __name__ == "__main__":
     plt.figure()
     plt.plot(ldvm_instance.time[1:ldvm_instance.i_step+1],ldvm_instance.bound_circ_save,'r-',label='my LDVM',markersize=2)
 
-    #plt.plot(data[:,0],gamma_lit,'b--',label='literature',markersize=2)
+    #plt.plot(data[-ppp:,0],gamma_lit[-ppp:],'b--',label='literature',markersize=2)
     plt.xlabel('time')
     plt.ylabel('bound circulation')
     plt.legend()
     plt.savefig('bound_circ.png', dpi=300)
     plt.figure()
 
-    plt.plot(ldvm_instance.time[2:ldvm_instance.i_step+1],cl_history[1:],'r-',label='my LDVM',markersize=2)
-    #plt.plot(data[:,0],cl_lit,'b--',label='literature',markersize=2)
+    plt.plot(ldvm_instance.time[-ppp:],cl_history[-ppp:],'r-',label='my LDVM',markersize=2)
+    #plt.plot(ldvm_instance.time[1:ldvm_instance.i_step+1],cn_history,'b-',label='my LDVM',markersize=2)
+    plt.plot(ldvm_instance.time[-ppp:],cl_theodorsen[-ppp:],'g--',label='Theodorsen lift',markersize=2)
+
+
+   # plt.plot(data[-ppp:,0],cl_lit[-ppp:],'b--',label='literature',markersize=2)
     plt.xlabel('time')
-    plt.ylabel('lift')
+    plt.ylabel('cl')
     plt.legend()
     plt.savefig('lift.png', dpi=300)
 
+
+
+
+
     plt.figure()
-    plt.plot(ldvm_instance.time[2:ldvm_instance.i_step+1],cd_history[1:],'r-',label='my LDVM',markersize=2)
-    #plt.plot(data[:,0],data[:,9],'b--',label='literature',markersize=2)
+
+    plt.plot(ldvm_instance.alpha[-ppp:]*180/np.pi,cl_history[-ppp:],'r-',label='my LDVM',markersize=2)
+    #plt.plot(ldvm_instance.time[1:ldvm_instance.i_step+1],cn_history,'b-',label='my LDVM',markersize=2)
+    plt.plot(alpha_theo*180/np.pi,cl_theodorsen,'g--',label='Theodorsen lift',markersize=2)
+
+
+    #plt.plot(ldvm_instance.alpha[-ppp:],cl_lit[-ppp:],'b--',label='literature',markersize=2)
     plt.xlabel('time')
-    plt.ylabel('drag')
+    plt.ylabel('cl')
+    plt.legend()
+    plt.savefig('lift_hysteresis.png', dpi=300)
+
+    plt.figure()
+    plt.figure()
+    plt.plot(ldvm_instance.time[-ppp:],cn_history[-ppp:],'r-',label='my LDVM',markersize=2)
+    plt.plot(ldvm_instance.time[-ppp:],ldvm_instance.h[-ppp:],'b-',label='h',markersize=2)
+    plt.plot(ldvm_instance.time[-ppp:],ldvm_instance.alpha[-ppp:],'b--',label='alpha',markersize=2)
+
+    plt.xlabel('time')
+    plt.ylabel('cn')
+    plt.legend()
+    plt.savefig('normal_force.png', dpi=300)
+    plt.figure()
+    plt.plot(ldvm_instance.time[-ppp:],cd_history[-ppp:],'r-',label='my LDVM',markersize=2)
+    #plt.plot(ldvm_instance.time[-ppp:],np.sin(ldvm_instance.alpha[1:])*np.array(cn_history),'g-',label='cnsin(alpha)',markersize=2)
+    #plt.plot(data[-ppp:,0],data[-ppp:,9],'b--',label='literature',markersize=2)
+    plt.xlabel('time')
+    plt.ylabel('cd')
     plt.legend()
     plt.savefig('drag.png', dpi=300)
     plt.figure()
-    plt.plot(ldvm_instance.time[2:ldvm_instance.i_step+1],cm_history[1:],'r-',label='my LDVM',markersize=2)
-    #plt.plot(data[:,0],data[:,10],'b--',label='literature',markersize=2)
+    plt.plot(ldvm_instance.time[-ppp:],cm_history[-ppp:],'r-',label='my LDVM',markersize=2)
+    plt.plot(ldvm_instance.time[-ppp:],cm_theodorsen[-ppp:],'g--',label='Theodorsen moment',markersize=2)
+    #plt.plot(data[-ppp:,0],data[-ppp:,10],'b--',label='literature',markersize=2)
     plt.xlabel('time')
-    plt.ylabel('moment')
+    plt.ylabel('cm')
     plt.legend()
     plt.savefig('moment.png', dpi=300)
     plt.show()
 
+
     plt.figure()
-    plt.scatter(ldvm_instance.time[5:ldvm_instance.i_step+1],cl_history[4:]*ldvm_instance.hdot[5:])
+    plt.plot(ldvm_instance.alpha[-ppp:],cm_history[-ppp:],'r-',label='my LDVM',markersize=2)
+    plt.plot(ldvm_instance.alpha[-ppp:],cm_theodorsen[-ppp:],'g--',label='Theodorsen moment',markersize=2)
+    #plt.plot(data[-ppp:,0],data[-ppp:,10],'b--',label='literature',markersize=2)
+    plt.xlabel('time')
+    plt.ylabel('cm')
+    plt.legend()
+    plt.savefig('moment_hysteresis.png', dpi=300)
+    plt.show()
+
+
+
+
+    plt.figure()
+    plt.plot(ldvm_instance.time[-ppp:],cl_history[-ppp:]*ldvm_instance.hdot[-ppp:],'b-')
+    plt.plot(ldvm_instance.time[-ppp:],cl_theodorsen[-ppp:]*ldvm_instance.hdot[-ppp:],'r-')
     plt.xlabel('time')
     plt.ylabel('power lift * velocity')
     plt.legend()
     plt.savefig('power_lift.png', dpi=300)
     plt.figure()
-    
-    plt.figure()    
-    plt.scatter(ldvm_instance.time[5:ldvm_instance.i_step+1],cm_history[4:]*ldvm_instance.alphadot[5:])
+
+    plt.figure()
+    plt.scatter(ldvm_instance.time[-ppp:],cm_history[-ppp:]*ldvm_instance.alphadot[-ppp:])
     plt.xlabel('time')
     plt.ylabel('power moment * velocity')
     plt.legend()
     plt.savefig('power_moment.png', dpi=300)
-    
+
 
 
     fig, ax = plt.subplots(tight_layout=True)
-    
+
     ax.plot(ldvm_instance.time,ldvm_instance.alphadot*180/np.pi,'r-',label='my LDVM',markersize=2)
     ax.set_xlabel('time')
     ax.set_ylabel('angle of attack derivatice (deg)')

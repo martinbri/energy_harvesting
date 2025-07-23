@@ -66,7 +66,7 @@ class PostProcessing:
         f= omega/2/ np.pi # Frequency in Hz
         St=f *designs[:, 2]*2/1 # Assuming velocity is 1  
         
-        fig, ax = plt.subplots(2, 2, figsize=(8, 6), tight_layout=True)
+        fig, ax = plt.subplots(3, 2, figsize=(12, 9), tight_layout=True)
         ax[0, 0].scatter(St, all_f[:, 0], c='red', marker='x', label=r'$\eta$')
         ax[0, 0].set_xlabel(r'$S_t$')
         ax[0, 0].set_ylabel(r'$\eta$')
@@ -95,10 +95,20 @@ class PostProcessing:
         ax_ = ax[1, 1].twinx()
         ax_.scatter(designs[:, 3], all_f[:, 1], c='blue', marker='o', label=r'$C_T$')
         ax_.set_ylabel(r'$C_T$')
+        
+        
+        ax[2, 0].scatter(designs[:,0], all_f[:, 0], c='red', marker='x', label=r'$\eta$')
+        ax[2, 0].set_xlabel(r'$S_t$')
+        ax[2, 0].set_ylabel(r'$\eta$')
+        ax_ = ax[2, 0].twinx()
+        ax_.scatter(designs[:,0], all_f[:, 1], c='blue', marker='o', label=r'$C_T$')
+        ax_.set_ylabel(r'$C_T$')
+        ax[2, 0].legend()
         fig.savefig(f"{data_save}/designs_generation_{i_gen}.png")
         plt.show()
 data_save='/scratch/disc/b.martin/Documents/energy_harvesting/LDVM/NSGAB/paretto_results/Results_NSGA2_2025_07_10_10_05_41/callback_data.npy'
 pp= PostProcessing(data_save)
 
 pp.plot_i_generation_design(99,'/scratch/disc/b.martin/Documents/energy_harvesting/LDVM/NSGAB/paretto_results/Results_NSGA2_2025_07_10_10_05_41')
-                           
+
+print(pp.data['All_designs'][99])
