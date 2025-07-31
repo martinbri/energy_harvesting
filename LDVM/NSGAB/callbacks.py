@@ -53,34 +53,34 @@ class MyCallback(Callback):
         all_designs = all_designs[~mask]
         
         fig, ax = plt.subplots(2,2,figsize=(8, 6), tight_layout=True)
-        ax[0,0].scatter(all_designs[:, 0], all_f[:, 0], c='red', marker='x', label='Designs')
+        ax[0,0].scatter(all_designs[:, 0], -all_f[:, 0], c='red', marker='x', label='Designs')
         ax[0,0].set_xlabel(r'$$k$')
         ax[0,0].set_ylabel(r'$\eta$')
         ax_=ax[0,0].twinx()
-        ax_.scatter(all_designs[:, 0], all_f[:, 1], c='blue', marker='o', label='Thrust Coefficient')
+        ax_.scatter(all_designs[:, 0], -all_f[:, 1], c='blue', marker='o', label='Thrust Coefficient')
         ax_.set_ylabel(r'$C_T$')        
         
-        ax[0,1].scatter(all_designs[:, 0], all_f[:, 1], c='red', marker='x', label='Designs')
+        ax[0,1].scatter(all_designs[:, 0], -all_f[:, 1], c='red', marker='x', label='Designs')
         ax[0,1].set_xlabel(r'$\alpha_0$')
         ax[0,1].set_ylabel(r'$\eta$')
         ax_=ax[0,1].twinx()
-        ax_.scatter(all_designs[:, 1], all_f[:, 1], c='blue', marker='o', label='Thrust Coefficient')
+        ax_.scatter(all_designs[:, 1], -all_f[:, 1], c='blue', marker='o', label='Thrust Coefficient')
         ax_.set_ylabel(r'$C_T$')
         
         
-        ax[1,0].scatter(all_designs[:, 2], all_f[:, 0], c='red', marker='x', label='Designs')
+        ax[1,0].scatter(all_designs[:, 2], -all_f[:, 0], c='red', marker='x', label='Designs')
         ax[1,0].set_xlabel(r'$h_0$')
         ax[1,0].set_ylabel(r'$\eta$')
         ax_=ax[1,0].twinx()
-        ax_.scatter(all_designs[:, 2], all_f[:, 1], c='blue', marker='o', label='Thrust Coefficient')
+        ax_.scatter(all_designs[:, 2], -all_f[:, 1], c='blue', marker='o', label='Thrust Coefficient')
         ax_.set_ylabel(r'$C_T$')
         
         
-        ax[1,1].scatter(all_designs[:, 3], all_f[:, 0], c='red', marker='x', label='Designs')
+        ax[1,1].scatter(all_designs[:, 3], -all_f[:, 0], c='red', marker='x', label='Designs')
         ax[1,1].set_xlabel(r'$\Psi$')
         ax[1,1].set_ylabel(r'$\eta$')
         ax_=ax[1,1].twinx()
-        ax_.scatter(all_designs[:, 3], all_f[:, 1], c='blue', marker='o', label='Thrust Coefficient')
+        ax_.scatter(all_designs[:, 3], -all_f[:, 1], c='blue', marker='o', label='Thrust Coefficient')
         ax_.set_ylabel(r'$C_T$')
         fig.savefig(f"{self.path_save}/designs_genration_{algorithm.n_gen}.png")
         plt.close()

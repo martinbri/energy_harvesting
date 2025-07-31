@@ -9,27 +9,23 @@ from problem_multi_obj import Eta_Thrust_parreto
 from callbacks import MyCallback
 import os
 from datetime import datetime
+import yaml
 
-config = {
-        'u_ref': 1.0,
-        'chord': 1.0,
-        'pvt': 0.33,
-        'cm_pvt': 0.33,
-        'foil_name': '../naca0015_airfoil.dat',
-        're_ref': 1100,
-        'lesp_crit':0.19,
-        'motion_file_name': 'motion_pr_amp45_k0.2.dat',
-        'force_file_name': 'force_pr_amp45_k0.2_le.csv',
-        'flow_file_name': 'flow.csv',
-        'n_pts_flow': 100,
-        'rho':1.225,
-        'nu': 1.566e-5,
-        'n_div': 70,
-    }
+
+
+# Load the configuration from config.yaml
+config_path = os.path.join(os.getcwd(), "config.yaml")
+with open(config_path, 'r') as file:
+    config = yaml.safe_load(file)
+
 problem = Eta_Thrust_parreto(config)
 
 
-algorithm = NSGA2(pop_size=24,
+pop_size = config['pop_size']
+n_generations = config['n_generations']
+
+
+algorithm = NSGA2(pop_size=pop_size ,
                   n_offsprings=24,
                   sampling=FloatRandomSampling(),
                   crossover=SBX(prob=0.9, eta=15),
@@ -37,10 +33,17 @@ algorithm = NSGA2(pop_size=24,
                   eliminate_duplicates=True)
 
                   
-termination = get_termination("n_gen", 100)
+termination = get_termination("n_gen", n_generations)
 # Create a directory with the current date in yyyy_mm_dd format
 current_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 path_save = os.path.join(os.getcwd(), f"paretto_results/Results_NSGA2_{current_time}")
+
+
+# Save the config.yaml file in the path_save directory
+os.makedirs(path_save, exist_ok=True)
+config_save_path = os.path.join(path_save, "config.yaml")
+with open(config_save_path, 'w') as file:
+    yaml.dump(config, file)
 print(f"Results will be saved in: {path_save}")
 
 os.makedirs(path_save, exist_ok=True)
